@@ -1,6 +1,6 @@
 import { Socket} from "socket.io-client";
 
-import { ClientToServerEvents, ServerToClientEvents } from "@workspace/ws/index";
+import { ClientToServerEvents, ServerToClientEvents } from "drawers-shared";
 
 interface SocketReservedEvents {
   connect: () => void;

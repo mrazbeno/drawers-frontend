@@ -1,4 +1,6 @@
 import Color from 'colorjs.io'
+import getStroke from 'perfect-freehand'
+import type { BrushSettings } from 'drawers-shared'
 
 export function generateLightColor(): string {
   const l = 0.85 + Math.random() * 0.1
@@ -31,9 +33,6 @@ export function throttleRaf<T extends (...args: any[]) => void>(fn: T) {
     }
   }
 }
-
-import getStroke from 'perfect-freehand'
-import type { BrushSettings } from '@workspace/ws/index'
 
 export function getSvgPathFromStroke(stroke: number[][]): string {
   if (!stroke.length) return ''
