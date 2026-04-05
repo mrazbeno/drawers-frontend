@@ -1,3 +1,5 @@
+![HERO](assets/readme_hero.png)
+
 **This is the primary repository of the Drawers app.**
 
 Other parts of this application are:
@@ -14,13 +16,16 @@ Built with Next.js, React, TypeScript, Socket.IO, Tailwind, ShadCN and the [Perf
 
 **IMPORTANT:** The backend of the live demo is hosted on Render; it may take a minute or two to spin up after inactivity.
 
-A live demo is available [here]().
+A live demo is available [here](https://drawers-frontend.vercel.app/).
 
 ## Features
 - Real-time collaborative drawing via Socket.IO
-- Rooms with ID and room info panel
-- Brushes using the  settings: color, size, opacity
-- Theme toggle and responsive canvas
+- Rooms like partitioning of collaborating users
+- Basic role separation (host and guests)
+- Configurable brush
+- SVG first drawing
+- SVG export
+- Canvas zoom & pan
 
 ## Local usage
 
@@ -36,11 +41,23 @@ A live demo is available [here]().
 5. Start drawing!
 
 ## Notes
-- There is no undo/redo.
-- Persistence: drawings are not persisted.
-- If server is offline, the app shows connection errors.
+  - **Not actively developed**
+  - Drawings are not persisted, but direct SVG export is possible.
+  - If server is offline, the app shows connection errors. (Noted in demo)
 
-## Screenshots
+## Future plans
+  - Centralize / unify more types.
+  - Partial or full transparency support.
+  - Export into JPEG, PNG.
+  - Better late joiner catchup logic.
+  - Drawing primitives eg. circle, square.
+  - Bucket tool.
+
+## Screenshots & GIFs
 A short GIF showing canvas view:
 
-![Demo](assets/demo.gif)
+![GIF_1](assets/demo.gif)
+![GIF_2](assets/solo_drawing_readme.gif)
+
+![PIC_1](assets/drawers_home_screen_1.png)
+![PIC_2](assets/drawers_home_screen_2.png)

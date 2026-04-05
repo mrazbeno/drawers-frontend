@@ -83,24 +83,24 @@ function generateSPoints(
     // Parametric S-curve
     function sCurve(t: number): [number, number] {
         const x = xOffset + t * width;
-        const y = yOffset + height/2 + Math.sin(t * Math.PI * 2) * height / 2;
+        const y = yOffset + height / 2 + Math.sin(t * Math.PI * 2) * height / 2;
         return [x, y];
     }
-   
+
     const step = 1 / numPoints;
 
-    for (let i = 0; i < 1; i += step) 
+    for (let i = 0; i < 1; i += step)
         points.push(sCurve(i))
-    
+
     return points
 }
 
 interface BrushSettingsPanelProps {
     brushSettings: BrushSettings;
-    setBrushSettings: React.Dispatch<React.SetStateAction<BrushSettings>>;
+    onBrushSettingsChange: (next: BrushSettings) => void;
 }
 
-export default function BrushSettingsPanel({ brushSettings, setBrushSettings }: BrushSettingsPanelProps) {
+export default function BrushSettingsPanel({ brushSettings, onBrushSettingsChange }: BrushSettingsPanelProps) {
 
     const previewCanvasRef = React.useRef<HTMLCanvasElement | null>(null);
 
@@ -199,7 +199,7 @@ export default function BrushSettingsPanel({ brushSettings, setBrushSettings }: 
         const { width, height } = previewCanvas.getBoundingClientRect();
 
         const previewPoints = generateSPoints(
-            30, 
+            30,
             width * 0.8,
             height * 0.8,
             width * 0.1,
@@ -234,30 +234,29 @@ export default function BrushSettingsPanel({ brushSettings, setBrushSettings }: 
     }
 
     React.useEffect(() => {
-        setBrushSettings(prev => ({
-            ...prev,
+
+        onBrushSettingsChange({
+            ...brushSettings,
             strokeOptions: {
-                ...prev.strokeOptions,
+                ...brushSettings.strokeOptions,
                 thinning,
                 smoothing,
                 streamline,
                 size: brushSize,
-                brushColor,
                 simulatePressure: simPressure,
                 start: {
-                    ...prev.strokeOptions.start,
+                    ...brushSettings.strokeOptions.start,
                     taper: startTaper,
-                    cap: startUseCap
+                    cap: startUseCap,
                 },
                 end: {
-                    ...prev.strokeOptions.end,
+                    ...brushSettings.strokeOptions.end,
                     taper: endTaper,
-                    cap: endUseCap
-                }
+                    cap: endUseCap,
+                },
             },
-            brushColor
-
-        }))
+            brushColor,
+        })
     }, [
         startTaper,
         endTaper,
@@ -297,8 +296,8 @@ export default function BrushSettingsPanel({ brushSettings, setBrushSettings }: 
                 <div className="flex flex-col w-full">
                     <h3>Presets</h3>
                     <div className="flex flex-row w-full gap-2">
-                        <Button className="grow basis-1" onClick={e => {setPresetStrokeOptions(HARD_PENCIL_PRESET_STROKE)} }><Pencil/>Hard pencil</Button>
-                        <Button className="grow basis-1"  onClick={e => {setPresetStrokeOptions(SOFT_BRUSH_PRESET_STROKE)} }><Brush/>Soft brush</Button>
+                        <Button className="grow basis-1" onClick={e => { setPresetStrokeOptions(HARD_PENCIL_PRESET_STROKE) }}><Pencil />Hard pencil</Button>
+                        <Button className="grow basis-1" onClick={e => { setPresetStrokeOptions(SOFT_BRUSH_PRESET_STROKE) }}><Brush />Soft brush</Button>
                     </div>
                 </div>
                 <Separator />
@@ -377,7 +376,8 @@ export default function BrushSettingsPanel({ brushSettings, setBrushSettings }: 
                     <div className="grid grid-cols-8 grid-rows-2 gap-2 w-full grow ">
 
                         {paletteColorCodes.map((c, i) => (
-                            <div key={i} style={{ backgroundColor: c }} onClick={e => { setBrushColor(c) }} className="cursor-pointer rounded-full border-solid border-2 border-gray-200 h-5">
+                            <div key={i} style={{ backgroundColor: c }} onClick={e => { setBrushColor(c) }} 
+                            className="rounded-sm cursor-pointer h-5">
 
                             </div>
                         ))}
@@ -407,11 +407,12 @@ export default function BrushSettingsPanel({ brushSettings, setBrushSettings }: 
                                 </div>
                             </DialogContent>
                         </Dialog>
-                        <div
+
+                        <button
                             style={{ background: "linear-gradient(in hsl longer hue 90deg, red 0 100%)" }}
-                            className="cursor-pointer rounded-full border-solid border-2 border-gray-200 h-5"
-                            onClick={e => { setIsColorPickDialogOpen(true) }}>
-                        </div>
+                            className="rounded-sm cursor-pointer h-5"
+                            onClick={e => { setIsColorPickDialogOpen(true) }}/>
+                        
                     </div>
                 </div>
             </div>

@@ -6,26 +6,36 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { SidebarHeader, SidebarContent, SidebarFooter, SidebarTrigger, useSidebar, Sidebar } from "@/components/ui/sidebar"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
-import { LogOut, Eraser, Settings, Users } from "lucide-react"
+import { LogOut, Eraser, Settings, Users, ArrowLeftFromLine, Download  } from "lucide-react"
 import BrushSettingsPanel from "./BrushSettingsPanel"
 import CopyButton from "./CopyButton"
 import RoomInfoPanel from "./RoomInfoPanel"
 import { BrushSettings } from "drawers-shared"
 import { ForeignUserMap } from "@/app/lib/types"
+import { Separator } from "@/components/ui/separator"
 
 interface CanvasSidePanelProps {
-    hostUserId: string,
-    thisUserId: string,
-    thisUsername: string
-    clearCanvas: Function
-    leaveRoom: Function
-    resize: Function
-    isMobile: boolean
-    currentRoomId: string
-    setBrushSettings: React.Dispatch<React.SetStateAction<BrushSettings>>;
-    brushSettings: BrushSettings
-    foreignUserStates: ForeignUserMap
-    onSidePanelTabChange: (e: string) => void
+    hostUserId: string;
+    thisUserId: string;
+    thisUsername: string;
+    currentRoomId: string;
+    isMobile: boolean;
+
+    foreignUserStates: ForeignUserMap;
+    onSidePanelTabChange: (tab: string) => void;
+
+    onLeaveRoom: () => void;
+    onClearCanvas: () => void;
+    onResizeViewport: () => void;
+
+    brushSettings: BrushSettings;
+    onBrushSettingsChange: (next: BrushSettings) => void;
+
+    onExportSvg: () => void;
+    onUndo: () => void;
+    onRedo: () => void;
+    canUndo: boolean;
+    canRedo: boolean;
 }
 
 export default function CanvasSidePanel(
@@ -34,15 +44,16 @@ export default function CanvasSidePanel(
         hostUserId,
         thisUserId,
         thisUsername,
-        clearCanvas,
-        leaveRoom,
+        onClearCanvas,
+        onLeaveRoom,
         isMobile,
         currentRoomId,
-        setBrushSettings,
+        onBrushSettingsChange,
         brushSettings,
         foreignUserStates,
         onSidePanelTabChange,
-        resize
+        onResizeViewport,
+        onExportSvg
     }: CanvasSidePanelProps
 
 ) {
@@ -71,18 +82,18 @@ export default function CanvasSidePanel(
                                     </AlertDialogHeader>
                                     <AlertDialogFooter>
                                         <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                        <AlertDialogAction onClick={e => { leaveRoom() }}>Continue</AlertDialogAction>
+                                        <AlertDialogAction onClick={e => { onLeaveRoom() }}>Continue</AlertDialogAction>
                                     </AlertDialogFooter>
                                 </AlertDialogContent>
                             </AlertDialog>
                             {hostUserId === thisUserId ? (
                                 <div className="">
                                     {false ? (
-                                        <Button onClick={e => { clearCanvas() }} ><Eraser /></Button>
+                                        <Button onClick={e => { onClearCanvas() }} ><Eraser /></Button>
 
                                     ) : (
 
-                                        <Button onClick={e => { clearCanvas() }}>Clear canvas</Button>
+                                        <Button onClick={e => { onClearCanvas() }}>Clear canvas</Button>
                                     )}
                                 </div>
                             ) : <></>}
@@ -92,9 +103,25 @@ export default function CanvasSidePanel(
                             <Input id="room_id_input" disabled type="text" readOnly value={currentRoomId} />
                             <CopyButton showText={!isMobile} copyString={currentRoomId}></CopyButton>
                         </div>
+
+                            <div className="grow">
+
+                        <Button
+                            type="button"
+                            onClick={onExportSvg}
+                            size="lg"
+                            variant="secondary"
+                            className="shadow-md w-full"
+                            title="Export SVG"
+                        >
+                            <Download />
+                            Download SVG
+                        </Button>
+                            </div>
                     </div>
                 </SidebarHeader>
-                <SidebarContent>
+                <Separator></Separator>
+                <SidebarContent className="p-2">
                     <Tabs onValueChange={e => { onSidePanelTabChange(e) }} defaultValue="settings" className="w-full grow">
                         <TabsList className="w-full">
                             <TabsTrigger value="settings">
@@ -107,11 +134,9 @@ export default function CanvasSidePanel(
                             </TabsTrigger>
                         </TabsList>
                         <TabsContent value="settings" className="w-full flex flex-col gap-2 p-2">
-                            {/* <div>BRUSH</div> */}
-                            <BrushSettingsPanel brushSettings={brushSettings} setBrushSettings={setBrushSettings} />
+                            <BrushSettingsPanel brushSettings={brushSettings} onBrushSettingsChange={onBrushSettingsChange} />
                         </TabsContent>
                         <TabsContent value="room_info" className="grow p-2">
-                            {/* <div>MEMBERS</div> */}
                             <RoomInfoPanel foreignUsers={foreignUserStates} myUserId={thisUserId} myUsername={thisUsername} hostUserId={hostUserId}></RoomInfoPanel>
                         </TabsContent>
                     </Tabs>
@@ -120,14 +145,14 @@ export default function CanvasSidePanel(
                 {
                     isMobile ? (
                         <SidebarFooter>
-                            <Button onClick={e => { resize(); sidebar.toggleSidebar(); }}>Close sidebar</Button>
+                            <Button onClick={e => { onResizeViewport(); sidebar.toggleSidebar(); }} variant={"destructive"}><ArrowLeftFromLine /> Close sidebar</Button>
                         </SidebarFooter>
                     ) : (
                         <></>
                     )
                 }
             </Sidebar>
-            <SidebarTrigger onClick={e => { resize()}} variant={"default"} className=" size-11 m-2 z-10 bg-blue-300" />
+            <SidebarTrigger onClick={e => { onResizeViewport()}} variant={"secondary"} size={"lg"} className="size-10 m-2 z-10" />
         </div>
     )
 }

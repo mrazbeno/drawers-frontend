@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { CheckIcon, CopyIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from "@/lib/utils"
+import { toast } from 'sonner'
 
 interface CopyButtonProps{
     copyString: string
@@ -19,6 +20,7 @@ const CopyButton = (props: CopyButtonProps) => {
       setCopied(true)
       setTimeout(() => setCopied(false), 1500)
     } catch (err) {
+      toast.error("Failed to copy room ID to clipboard...")
       console.error('Failed to copy text: ', err)
     }
   }
@@ -28,10 +30,10 @@ const CopyButton = (props: CopyButtonProps) => {
       <span className={cn('transition-all', copied ? 'scale-100 opacity-100' : 'scale-0 opacity-0')}>
         <CheckIcon className='stroke-green-600 dark:stroke-green-400' />
       </span>
-      <span className={cn('absolute left-4 transition-all', copied ? 'scale-0 opacity-0' : 'scale-100 opacity-100')}>
+      <span className={cn('absolute left-3 transition-all', copied ? 'scale-0 opacity-0' : 'scale-100 opacity-100')}>
         <CopyIcon />
       </span>
-      {props.showText ? (copied ? 'Copied!' : 'Copy') : <></>}
+      {copied ? 'Copied!' : 'Copy'}
     </Button>
   )
 }
