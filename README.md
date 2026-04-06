@@ -29,7 +29,7 @@ A live demo is available [here](https://drawers-frontend.vercel.app/).
 
 ## Local usage
 
-1. Clone the [drawers-frontend]() and [drawers-backend]() repositories.
+1. Clone **this** and the [drawers-backend](https://github.com/mrazbeno/drawers-backend) repositories.
       
 2. In both projects: 
    - Install packages with `npm install`.
@@ -41,17 +41,9 @@ A live demo is available [here](https://drawers-frontend.vercel.app/).
 5. Start drawing!
 
 ## Notes
-  - **Not actively developed**
+  - Considered feature-complete; no longer actively developed.
   - Drawings are not persisted, but direct SVG export is possible.
   - If server is offline, the app shows connection errors. (Noted in demo)
-
-## Future plans
-  - Centralize / unify more types.
-  - Partial or full transparency support.
-  - Export into JPEG, PNG.
-  - Better late joiner catchup logic.
-  - Drawing primitives eg. circle, square.
-  - Bucket tool.
 
 ## Screenshots & GIFs
 A short GIF showing canvas view:
