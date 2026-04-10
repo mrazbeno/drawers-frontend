@@ -11,8 +11,6 @@ interface BrushSettingsPanelProps {
     hostUserId: string
 }
 
-
-
 export default function RoomInfoPanel({ foreignUsers, myUsername, myUserId, hostUserId }: BrushSettingsPanelProps) {
     return (
         <div className="flex w-full h-full grow select-none">

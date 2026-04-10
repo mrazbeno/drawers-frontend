@@ -12,6 +12,7 @@ import { BrushSettings } from "drawers-shared"
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { HexColorPicker } from "react-colorful";
+import { getSvgPathFromStroke } from "../lib/utility";
 
 const paletteColorCodes = [
     "#000000",
@@ -103,26 +104,60 @@ interface BrushSettingsPanelProps {
 export default function BrushSettingsPanel({ brushSettings, onBrushSettingsChange }: BrushSettingsPanelProps) {
 
     const previewCanvasRef = React.useRef<HTMLCanvasElement | null>(null);
-
     const previewCtxRef = React.useRef<CanvasRenderingContext2D | null>(null);
 
     const [previewPoints, setPreviewPoints] = React.useState<number[][]>([])
     const [showStrokePts, setShowStrokePts] = React.useState<boolean>(false)
+    const [isColorPickDialogOpen, setIsColorPickDialogOpen] = React.useState(false);
+    const [color, setColor] = React.useState("#aabbcc");
 
-    function getSvgPathFromStroke(stroke: any) {
-        if (!stroke.length) return ""
+    const MAX_BRUSH_SIZE = 100
 
-        const d = stroke.reduce(
-            (acc: any, [x0, y0]: any, i: any, arr: any) => {
-                const [x1, y1] = arr[(i + 1) % arr.length]
-                acc.push(x0, y0, (x0 + x1) / 2, (y0 + y1) / 2)
-                return acc
+    const thinning = brushSettings.strokeOptions.thinning ?? 0
+    const smoothing = brushSettings.strokeOptions.smoothing ?? 0
+    const streamline = brushSettings.strokeOptions.streamline ?? 0
+    const startTaper = brushSettings.strokeOptions.start?.taper ?? 0
+    const endTaper = brushSettings.strokeOptions.end?.taper ?? 0
+    const startUseCap = brushSettings.strokeOptions.start?.cap ?? true
+    const endUseCap = brushSettings.strokeOptions.end?.cap ?? true
+    const simPressure = brushSettings.strokeOptions.simulatePressure ?? true
+    const brushColor = brushSettings.brushColor ?? "#000000";
+    const brushSize = brushSettings.strokeOptions.size ?? 16
+
+    const sliderValue = Math.sqrt(brushSize)
+
+    function updateBrushSettings(next: Partial<BrushSettings>) {
+        onBrushSettingsChange({
+            ...brushSettings,
+            ...next,
+        })
+    }
+
+    function updateStrokeOptions(next: Partial<StrokeOptions>) {
+        updateBrushSettings({
+            strokeOptions: {
+                ...brushSettings.strokeOptions,
+                ...next,
             },
-            ["M", ...stroke[0], "Q"]
-        )
+        })
+    }
 
-        d.push("Z")
-        return d.join(" ")
+    function updateStrokeStart(next: Partial<NonNullable<StrokeOptions["start"]>>) {
+        updateStrokeOptions({
+            start: {
+                ...brushSettings.strokeOptions.start,
+                ...next,
+            },
+        })
+    }
+
+    function updateStrokeEnd(next: Partial<NonNullable<StrokeOptions["end"]>>) {
+        updateStrokeOptions({
+            end: {
+                ...brushSettings.strokeOptions.end,
+                ...next,
+            },
+        })
     }
 
     function drawBrushPreview() {
@@ -137,7 +172,7 @@ export default function BrushSettingsPanel({ brushSettings, onBrushSettingsChang
         const pathData = getSvgPathFromStroke(stroke);
         const path = new Path2D(pathData);
 
-        prevCtx.fillStyle = brushSettings.brushColor;
+        prevCtx.fillStyle = brushColor;
         prevCtx.fill(path);
 
         if (!showStrokePts) return
@@ -161,12 +196,10 @@ export default function BrushSettingsPanel({ brushSettings, onBrushSettingsChang
     }, [previewPoints, brushSettings, showStrokePts])
 
     React.useEffect(() => {
-
         const previewCanvas = previewCanvasRef.current
         if (!previewCanvas) return;
 
         const previewCtx = previewCanvas.getContext("2d")!;
-
         previewCtxRef.current = previewCtx;
 
         const prevRect = previewCanvas.getBoundingClientRect()
@@ -175,23 +208,8 @@ export default function BrushSettingsPanel({ brushSettings, onBrushSettingsChang
 
         createPreviewPoints()
 
-        loadBrushSettingsToUI()
-
         return () => { }
     }, [])
-
-    function loadBrushSettingsToUI() {
-        setThinning(brushSettings.strokeOptions.thinning ?? 0)
-        setSmoothing(brushSettings.strokeOptions.smoothing ?? 0)
-        setStreamline(brushSettings.strokeOptions.streamline ?? 0)
-        setStartTaper(brushSettings.strokeOptions.start?.taper ?? 0)
-        setEndTaper(brushSettings.strokeOptions.end?.taper ?? 0)
-        setStartUseCap(brushSettings.strokeOptions.start?.cap ?? true)
-        setEndUseCap(brushSettings.strokeOptions.end?.cap ?? true)
-        setSimPressure(brushSettings.strokeOptions.simulatePressure ?? true)
-        setBrushColor(brushSettings.brushColor ?? "#000")
-        setBrushSize(brushSettings.strokeOptions.size ?? 1)
-    }
 
     function createPreviewPoints() {
         const previewCanvas = previewCanvasRef.current
@@ -206,87 +224,44 @@ export default function BrushSettingsPanel({ brushSettings, onBrushSettingsChang
             height * 0.1
         )
 
-        setPreviewPoints(f => previewPoints)
+        setPreviewPoints(previewPoints)
     }
 
-    const [thinning, setThinning] = React.useState<number>(0.5)
-    const [smoothing, setSmoothing] = React.useState<number>(0.5)
-    const [streamline, setStreamline] = React.useState<number>(0.5)
-    const [startTaper, setStartTaper] = React.useState<number | boolean>(1)
-    const [endTaper, setEndTaper] = React.useState<number | boolean>(1)
-    const [startUseCap, setStartUseCap] = React.useState<boolean>(true)
-    const [endUseCap, setEndUseCap] = React.useState<boolean>(true)
-    const [simPressure, setSimPressure] = React.useState<boolean>(true)
-    const [brushColor, setBrushColor] = React.useState<string>("#000000");
-    const [brushSize, setBrushSize] = React.useState<number>(16)
-
-    const sliderValue = Math.sqrt(brushSize)
-
     const handleSliderChange = (value: number[]) => {
-        setBrushSize(Math.floor(Math.pow(value[0] ?? 0, 2)))
+        updateStrokeOptions({
+            size: Math.floor(Math.pow(value[0] ?? 0, 2)),
+        })
     }
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const val = Math.floor(+e.target.value)
         if (!isNaN(val) && val >= 1 && val <= MAX_BRUSH_SIZE) {
-            setBrushSize(val)
+            updateStrokeOptions({
+                size: val,
+            })
         }
     }
 
-    React.useEffect(() => {
-
-        onBrushSettingsChange({
-            ...brushSettings,
-            strokeOptions: {
-                ...brushSettings.strokeOptions,
-                thinning,
-                smoothing,
-                streamline,
-                size: brushSize,
-                simulatePressure: simPressure,
-                start: {
-                    ...brushSettings.strokeOptions.start,
-                    taper: startTaper,
-                    cap: startUseCap,
-                },
-                end: {
-                    ...brushSettings.strokeOptions.end,
-                    taper: endTaper,
-                    cap: endUseCap,
-                },
-            },
-            brushColor,
-        })
-    }, [
-        startTaper,
-        endTaper,
-        startUseCap,
-        endUseCap,
-        thinning,
-        smoothing,
-        streamline,
-        brushSize,
-        simPressure,
-        brushColor
-    ])
-
-    const MAX_BRUSH_SIZE = 100
-
-    const [isColorPickDialogOpen, setIsColorPickDialogOpen] = React.useState(false);
-
     function handleColorPick() {
-        setBrushColor(color)
+        updateBrushSettings({
+            brushColor: color,
+        })
         setIsColorPickDialogOpen(false)
     }
 
-    const [color, setColor] = React.useState("#aabbcc");
-
     function setPresetStrokeOptions(options: StrokeOptions) {
-        const size = brushSettings.strokeOptions.size
-        brushSettings.strokeOptions = options
-        brushSettings.strokeOptions.size = size
-        drawBrushPreview()
-        loadBrushSettingsToUI()
+        const size = brushSettings.strokeOptions.size ?? options.size
+
+        const nextOptions: StrokeOptions = {
+            ...options,
+            size,
+            start: options.start ? { ...options.start } : options.start,
+            end: options.end ? { ...options.end } : options.end,
+        }
+
+        updateBrushSettings({
+            strokeOptions: nextOptions,
+        })
     }
 
     return (
@@ -302,53 +277,53 @@ export default function BrushSettingsPanel({ brushSettings, onBrushSettingsChang
                 </div>
                 <Separator />
                 <div className="flex gap-2 flex-col">
-                    <Label htmlFor="brush_size_input">Brush size</Label>
-                    <Input min={1} max={MAX_BRUSH_SIZE} step={1} id="brush_size_input" value={brushSize} onChange={handleInputChange} type="number" />
+                    <Label htmlFor="brush_size">Brush size</Label>
+                    <Input min={1} max={MAX_BRUSH_SIZE} step={1} id="brush_size" value={brushSize} onChange={handleInputChange} type="number" />
                     <Slider min={1} max={Math.sqrt(MAX_BRUSH_SIZE)} step={0.1} value={[sliderValue]} onValueChange={handleSliderChange} />
                 </div>
                 <Separator />
                 <div className="flex gap-2 flex-col">
-                    <Label htmlFor="brush_size_input">Thinning</Label>
-                    <Input min={0.0} max={1.0} step={0.02} id="brush_size_input" value={thinning} onChange={e => setThinning(+e.target.value)} type="number" />
-                    <Slider min={0.0} max={1.0} step={0.02} value={[thinning]} onValueChange={(value) => setThinning(value[0] ?? 0)} />
+                    <Label htmlFor="brush_thinning">Thinning</Label>
+                    <Input min={0.0} max={1.0} step={0.02} id="brush_thinning" value={thinning} onChange={e => updateStrokeOptions({ thinning: +e.target.value })} type="number" />
+                    <Slider min={0.0} max={1.0} step={0.02} value={[thinning]} onValueChange={(value) => updateStrokeOptions({ thinning: value[0] ?? 0 })} />
                 </div>
                 <Separator />
                 <div className="flex gap-2 flex-col">
-                    <Label htmlFor="brush_size_input">Smoothing</Label>
-                    <Input min={0.0} max={1.0} step={0.02} id="brush_size_input" value={smoothing} onChange={e => setSmoothing(+e.target.value)} type="number" />
-                    <Slider min={0.0} max={1.0} step={0.02} value={[smoothing]} onValueChange={(value) => setSmoothing(value[0] ?? 0)} />
+                    <Label htmlFor="brush_smoothing">Smoothing</Label>
+                    <Input min={0.0} max={1.0} step={0.02} id="brush_smoothing" value={smoothing} onChange={e => updateStrokeOptions({ smoothing: +e.target.value })} type="number" />
+                    <Slider min={0.0} max={1.0} step={0.02} value={[smoothing]} onValueChange={(value) => updateStrokeOptions({ smoothing: value[0] ?? 0 })} />
                 </div>
                 <Separator />
                 <div className="flex gap-2 flex-col">
-                    <Label htmlFor="brush_size_input">Streamline</Label>
-                    <Input min={0.0} max={1.0} step={0.02} id="brush_size_input" value={streamline} onChange={e => setStreamline(+e.target.value)} type="number" />
-                    <Slider min={0.0} max={1.0} step={0.02} value={[streamline]} onValueChange={(value) => setStreamline(value[0] ?? 0)} />
+                    <Label htmlFor="brush_streamline">Streamline</Label>
+                    <Input min={0.0} max={1.0} step={0.02} id="brush_streamline" value={streamline} onChange={e => updateStrokeOptions({ streamline: +e.target.value })} type="number" />
+                    <Slider min={0.0} max={1.0} step={0.02} value={[streamline]} onValueChange={(value) => updateStrokeOptions({ streamline: value[0] ?? 0 })} />
                 </div>
                 <Separator />
                 <div className="flex flex-row  gap-2">
-                    <Checkbox id="cb_sim_press" checked={simPressure} onCheckedChange={(checked) => { setSimPressure(checked == true) }} />
+                    <Checkbox id="cb_sim_press" checked={simPressure} onCheckedChange={(checked) => { updateStrokeOptions({ simulatePressure: checked == true }) }} />
                     <Label htmlFor="cb_sim_press">Simulate pressure based on velocity</Label>
                 </div>
                 <Separator />
                 <div className="flex gap-2 flex-row">
                     <div className="flex gap-2 grow flex-col">
                         <h2>Stroke start</h2>
-                        <Label htmlFor="brush_size_input">Taper length</Label>
-                        <Input min={0.0} max={100} step={1} id="brush_size_input" value={typeof startTaper == "boolean" ? 100 : startTaper} onChange={e => setStartTaper(+e.target.value == 100 ? true : +e.target.value)} type="number" />
-                        <Slider min={0.0} max={100} step={1} value={[typeof startTaper == "boolean" ? 100 : startTaper]} onValueChange={(value) => setStartTaper((value[0] ?? 0) == 100 ? true : value[0] ?? 0)} />
+                        <Label htmlFor="brush_start_taper">Taper length</Label>
+                        <Input min={0.0} max={100} step={1} id="brush_start_taper" value={typeof startTaper == "boolean" ? 100 : startTaper} onChange={e => updateStrokeStart({ taper: +e.target.value == 100 ? true : +e.target.value })} type="number" />
+                        <Slider min={0.0} max={100} step={1} value={[typeof startTaper == "boolean" ? 100 : startTaper]} onValueChange={(value) => updateStrokeStart({ taper: (value[0] ?? 0) == 100 ? true : value[0] ?? 0 })} />
                         <div className="flex flex-row gap-2" >
-                            <Checkbox checked={startUseCap} onCheckedChange={(checked) => { setStartUseCap(checked == true) }} id="cb_use_start_line_cap" />
+                            <Checkbox checked={startUseCap} onCheckedChange={(checked) => { updateStrokeStart({ cap: checked == true }) }} id="cb_use_start_line_cap" />
                             <Label htmlFor="cb_use_start_line_cap">Use line cap</Label>
                         </div>
                     </div>
                     <Separator orientation="vertical" />
                     <div className="flex gap-2 grow flex-col">
                         <h2>Stroke end</h2>
-                        <Label htmlFor="brush_size_input">Taper length</Label>
-                        <Input min={0.0} max={100} step={1} id="brush_size_input" value={typeof endTaper == "boolean" ? 100 : endTaper} onChange={e => setEndTaper(+e.target.value == 100 ? true : +e.target.value)} type="number" />
-                        <Slider min={0.0} max={100} step={1} value={[typeof endTaper == "boolean" ? 100 : endTaper]} onValueChange={(value) => setEndTaper((value[0] ?? 0) == 100 ? true : value[0] ?? 0)} />
+                        <Label htmlFor="brush_end_taper">Taper length</Label>
+                        <Input min={0.0} max={100} step={1} id="brush_end_taper" value={typeof endTaper == "boolean" ? 100 : endTaper} onChange={e => updateStrokeEnd({ taper: +e.target.value == 100 ? true : +e.target.value })} type="number" />
+                        <Slider min={0.0} max={100} step={1} value={[typeof endTaper == "boolean" ? 100 : endTaper]} onValueChange={(value) => updateStrokeEnd({ taper: (value[0] ?? 0) == 100 ? true : value[0] ?? 0 })} />
                         <div className="flex flex-row gap-2">
-                            <Checkbox checked={endUseCap} onCheckedChange={(checked) => { setEndUseCap(checked == true) }} id="cb_use_end_line_cap" />
+                            <Checkbox checked={endUseCap} onCheckedChange={(checked) => { updateStrokeEnd({ cap: checked == true }) }} id="cb_use_end_line_cap" />
                             <Label htmlFor="cb_use_end_line_cap">Use line cap</Label>
                         </div>
                     </div>
@@ -376,10 +351,10 @@ export default function BrushSettingsPanel({ brushSettings, onBrushSettingsChang
                     <div className="grid grid-cols-8 grid-rows-2 gap-2 w-full grow ">
 
                         {paletteColorCodes.map((c, i) => (
-                            <div key={i} style={{ backgroundColor: c }} onClick={e => { setBrushColor(c) }} 
+                            <Button key={i} style={{ backgroundColor: c }} onClick={e => { updateBrushSettings({ brushColor: c }) }}
                             className="rounded-sm cursor-pointer h-5">
 
-                            </div>
+                            </Button>
                         ))}
 
                         {/* Username Dialog */}
@@ -411,8 +386,11 @@ export default function BrushSettingsPanel({ brushSettings, onBrushSettingsChang
                         <button
                             style={{ background: "linear-gradient(in hsl longer hue 90deg, red 0 100%)" }}
                             className="rounded-sm cursor-pointer h-5"
-                            onClick={e => { setIsColorPickDialogOpen(true) }}/>
-                        
+                            onClick={e => {
+                                setColor(brushColor)
+                                setIsColorPickDialogOpen(true)
+                            }}/>
+
                     </div>
                 </div>
             </div>

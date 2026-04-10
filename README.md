@@ -1,4 +1,4 @@
-![HERO](assets/readme_hero.png)
+![HERO](assets/readme_hero.jpeg)
 
 **This is the primary repository of the Drawers app.**
 
@@ -10,7 +10,7 @@ Other parts of this application are:
 
 A collaborative drawing app showcasing real-time canvas, an adjustable brush tool and member rooms. 
 
-Built with Next.js, React, TypeScript, Socket.IO, Tailwind, ShadCN and the [Perfect freehand](https://github.com/steveruizok/perfect-freehand) stroke library.
+Built with Next.js, React, TypeScript, Socket.IO, Tailwind, Shadcn and the [Perfect freehand](https://github.com/steveruizok/perfect-freehand) stroke library.
 
 ## Demo
 
@@ -51,5 +51,5 @@ A short GIF showing canvas view:
 ![GIF_1](assets/demo.gif)
 ![GIF_2](assets/solo_drawing_readme.gif)
 
-![PIC_1](assets/drawers_home_screen_1.png)
-![PIC_2](assets/drawers_home_screen_2.png)
+![PIC_1](assets/drawers_home_screen_1.jpeg)
+![PIC_2](assets/drawers_home_screen_2.jpeg)

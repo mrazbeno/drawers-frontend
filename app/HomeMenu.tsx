@@ -18,6 +18,8 @@ import { useRouter } from "next/navigation";
 import { Label } from "@/components/ui/label";
 import Link from "next/link";
 
+// TODO: put username validation params in the shared package 
+
 const MAX_USR_LEN = 24
 const MIN_USR_LEN = 3
 
@@ -26,22 +28,42 @@ const IS_DEMO: boolean = process.env.NEXT_PUBLIC_IS_LIVE_DEMO == "TRUE"
 
 const usernameRegex = /^(?=.*[A-Za-z0-9])[A-Za-z0-9]+(?: [A-Za-z0-9]+)*$/;
 
-function isValidUsername(username: string): boolean {
+/**
+ * 
+ * @param username 
+ * @returns null on SUCCESS, error msg otherwise
+ */
+function isValidUsername(username: string): string | null {
     const trimmed = username.trim();
-    if (trimmed.length < MIN_USR_LEN || trimmed.length > MAX_USR_LEN) return false;
-    return usernameRegex.test(trimmed);
+    if (trimmed.length < MIN_USR_LEN || trimmed.length > MAX_USR_LEN)
+        return "Username must be between 3-24 characters.";
+
+    if (!usernameRegex.test(trimmed))
+        return "Username must only contain letters and numbers."
+
+    return null
 }
 
-export default function HomeMenu () {
+export default function HomeMenu() {
     const [roomId, setRoomId] = useState("");
     const [isJoinDialogOpen, setIsJoinDialogOpen] = useState(false);
     const [isUsernameDialogOpen, setIsUsernameDialogOpen] = useState(false);
     const [username, setUsername] = useState("");
 
+    const [isCreatingRoom, setIsCreatingRoom] = useState(false);
+    const [isJoiningRoom, setIsJoiningRoom] = useState(false);
+    const [isEnteringRoom, setIsEnteringRoom] = useState(false);
+
     const router = useRouter()
     const socket = useSocket()
 
+    const isBusy = isCreatingRoom || isJoiningRoom || isEnteringRoom;
+
     async function createRoom() {
+        if (isBusy) return;
+
+        setIsCreatingRoom(true);
+
         try {
             const resp = await fetch(`${process.env.NEXT_PUBLIC_WS_URL}/rooms`, {
                 method: "POST",
@@ -66,20 +88,32 @@ export default function HomeMenu () {
             const roomId = data.roomId;
 
             socket.updateRoomId(roomId);
+            setUsername("");
             setIsUsernameDialogOpen(true);
 
         } catch (error) {
             // Network-level error (connection refused, DNS, CORS, etc.)
             console.error(error);
-
             toast.error("Cannot connect to server.");
+        } finally {
+            setIsCreatingRoom(false);
         }
     }
 
     async function joinRoom() {
+        if (isBusy) return;
+
+        const trimmedRoomId = roomId.trim();
+        if (!trimmedRoomId) {
+            toast.error("Please enter a room ID");
+            return;
+        }
+
+        setIsJoiningRoom(true);
+
         try {
             const resp = await fetch(
-                `${process.env.NEXT_PUBLIC_WS_URL}/rooms/${roomId}`,
+                `${process.env.NEXT_PUBLIC_WS_URL}/rooms/${trimmedRoomId}`,
                 { method: "GET" }
             );
 
@@ -99,37 +133,60 @@ export default function HomeMenu () {
             }
 
             // Success
-            socket.updateRoomId(roomId);
+            socket.updateRoomId(trimmedRoomId);
+            setUsername("");
+            setIsJoinDialogOpen(false);
             setIsUsernameDialogOpen(true);
 
         } catch (error) {
             // Network-level error
             console.error(error);
             toast.error("Cannot connect to server.");
+        } finally {
+            setIsJoiningRoom(false);
         }
     }
 
     async function enterRoom(username: string) {
+        if (isBusy) return;
 
-        const isNameValid = isValidUsername(username)
-        if (!isNameValid) {
-            toast.error("Username validation failed (1)");
+        // Validate locally first
+        const nameValiddationErrorMsg: string | null = isValidUsername(username)
+        if (nameValiddationErrorMsg !== null) {
+            toast.error(nameValiddationErrorMsg);
             return;
         }
 
-        const resp = await fetch(
-            `${process.env.NEXT_PUBLIC_WS_URL}/validate_username`,
-            {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ roomId: socket.getRoomId(), username })
-            })
-        if (resp.status !== 200) {
-            toast.error("Username validation failed (2)");
-            return;
-        }
+        setIsEnteringRoom(true);
 
-        socket.connectToRoom(username, joinSuccess, joinFail)
+        // Backend / true validation + global duplication check
+        try {
+            const resp = await fetch(
+                `${process.env.NEXT_PUBLIC_WS_URL}/validate_username`,
+                {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ roomId: socket.getRoomId(), username })
+                })
+
+            if (resp.status !== 200) {
+                let errorMsg = "Username validation failed";
+
+                try {
+                    const data = await resp.json();
+                    errorMsg = data.error || errorMsg;
+                } catch { }
+
+                toast.error(errorMsg);
+                return;
+            }
+
+            socket.connectToRoom(username, joinSuccess, joinFail)
+        } catch (error) {
+            console.error(error)
+            toast.error("Cannot connect to server.")
+            setIsEnteringRoom(false);
+        }
     }
 
     function joinSuccess() {
@@ -137,22 +194,23 @@ export default function HomeMenu () {
     }
 
     function joinFail(data: { message: string }) {
-        toast.error("Failed to join room...")
+        setIsEnteringRoom(false);
+        toast.error(`Failed to join room: '${data.message}'`)
     }
 
     const handleUsernameSubmit = async () => {
+        if (isEnteringRoom) return;
+
         if (!username.trim()) {
             toast.error("Please enter a username");
             return;
         }
 
-        enterRoom(username)
+        await enterRoom(username.trim())
     };
 
     React.useEffect(() => {
-
         socket.disconnect()
-
         return () => { }
     }, [])
 
@@ -195,14 +253,27 @@ export default function HomeMenu () {
                                 size="xl"
                                 onClick={createRoom}
                                 className="group"
+                                disabled={isBusy}
+                                aria-busy={isCreatingRoom}
                             >
                                 <Pencil className="w-5 h-5 group-hover:rotate-12 transition-transform" />
-                                Create Room
+                                {isCreatingRoom ? "Creating Room..." : "Create Room"}
                             </Button>
 
-                            <Dialog open={isJoinDialogOpen} onOpenChange={setIsJoinDialogOpen}>
+                            <Dialog
+                                open={isJoinDialogOpen}
+                                onOpenChange={(open) => {
+                                    if (isJoiningRoom || isEnteringRoom) return;
+                                    setIsJoinDialogOpen(open);
+                                }}
+                            >
                                 <DialogTrigger asChild>
-                                    <Button variant="outline" size="xl" className="border-2">
+                                    <Button
+                                        variant="outline"
+                                        size="xl"
+                                        className="border-2"
+                                        disabled={isBusy}
+                                    >
                                         <Users className="w-5 h-5" />
                                         Join Room
                                     </Button>
@@ -219,26 +290,38 @@ export default function HomeMenu () {
                                             <Input
                                                 placeholder="Enter room ID..."
                                                 value={roomId}
+                                                disabled={isJoiningRoom || isEnteringRoom}
                                                 onChange={(e) => setRoomId(e.target.value)}
                                                 onKeyDown={(e) => {
-                                                    if (e.key === "Enter") joinRoom();
+                                                    if (e.key === "Enter" && !isJoiningRoom && !isEnteringRoom) {
+                                                        joinRoom();
+                                                    }
                                                 }}
                                                 className="h-12 text-lg"
+                                                aria-busy={isJoiningRoom}
                                             />
                                         </div>
                                         <Button
                                             onClick={joinRoom}
                                             className="w-full h-12 text-lg"
                                             variant="hero"
+                                            disabled={isJoiningRoom || isEnteringRoom || !roomId.trim()}
+                                            aria-busy={isJoiningRoom}
                                         >
-                                            Join Room
+                                            {isJoiningRoom ? "Joining Room..." : "Join Room"}
                                         </Button>
                                     </div>
                                 </DialogContent>
                             </Dialog>
 
                             {/* Username Dialog */}
-                            <Dialog open={isUsernameDialogOpen} onOpenChange={setIsUsernameDialogOpen}>
+                            <Dialog
+                                open={isUsernameDialogOpen}
+                                onOpenChange={(open) => {
+                                    if (isEnteringRoom) return;
+                                    setIsUsernameDialogOpen(open);
+                                }}
+                            >
                                 <DialogContent className="sm:max-w-md">
                                     <DialogHeader>
                                         <DialogTitle className="text-2xl">Choose Your Username</DialogTitle>
@@ -251,19 +334,25 @@ export default function HomeMenu () {
                                             <Input
                                                 placeholder="Enter your username..."
                                                 value={username}
+                                                disabled={isEnteringRoom}
                                                 onChange={(e) => setUsername(e.target.value)}
                                                 onKeyDown={(e) => {
-                                                    if (e.key === "Enter") handleUsernameSubmit();
+                                                    if (e.key === "Enter" && !isEnteringRoom) {
+                                                        handleUsernameSubmit();
+                                                    }
                                                 }}
                                                 className="h-12 text-lg"
+                                                aria-busy={isEnteringRoom}
                                             />
                                         </div>
                                         <Button
                                             onClick={handleUsernameSubmit}
                                             className="w-full h-12 text-lg"
                                             variant="hero"
+                                            disabled={isEnteringRoom || !username.trim()}
+                                            aria-busy={isEnteringRoom}
                                         >
-                                            Enter Canvas
+                                            {isEnteringRoom ? "Entering Canvas..." : "Enter Canvas"}
                                         </Button>
                                     </div>
                                 </DialogContent>
@@ -297,7 +386,7 @@ export default function HomeMenu () {
                         <div className="absolute inset-0 bg-[var(--gradient-primary)] opacity-20 blur-3xl rounded-full"></div>
                         <div className="relative flex flex-col gap-2">
                             <Label className="text-muted-foreground" aria-labelledby="demo_video">Take a peek at the canvas</Label>
-                            <video title="Canvas demo video" id="demo_video" className="rounded-md relative shadow-[var(--shadow-card)] w-full h-auto" autoPlay muted loop playsInline poster="/demo/home_draw_poster.png">
+                            <video title="Canvas demo video" id="demo_video" className="rounded-md relative shadow-[var(--shadow-card)] w-full h-auto" autoPlay muted loop playsInline>
                                 <source src="/demo/drawers_hero_video_solo.mp4" />
                                 Your browser does not support the video tag.
                             </video>
@@ -316,11 +405,9 @@ export default function HomeMenu () {
                 </footer>
             )}
 
-
             <div className="min-h-screen min-w-screen fixed -z-1"
                 style={{ background: "radial-gradient(125% 125% at 50% 10%, #000000 40%, #2b0707 100%)" }}
             />
-
         </div>
     );
 };
