@@ -17,6 +17,8 @@ import { useSocket } from "@/providers/SocketProvider";
 import { useRouter } from "next/navigation";
 import { Label } from "@/components/ui/label";
 import Link from "next/link";
+import { VideoWithOverlaySkeleton } from "./(components)/VideoWithOverlaySkeleton";
+import { Skeleton } from "@/components/ui/skeleton";
 
 // TODO: put username validation params in the shared package 
 
@@ -381,15 +383,26 @@ export default function HomeMenu() {
                         </div>
                     </div>
 
-                    {/* Right Image */}
+                    {/* <VideoWithOverlaySkeleton/> */}
+                    {/* Right Video */}
                     <div className="relative">
-                        <div className="absolute inset-0 bg-[var(--gradient-primary)] opacity-20 blur-3xl rounded-full"></div>
-                        <div className="relative flex flex-col gap-2">
+                        {/* <div className="absolute inset-0 bg-[var(--gradient-primary)] opacity-20 blur-3xl rounded-full"></div> */}
+                        <div className="relative flex flex-col gap-2 ">
                             <Label className="text-muted-foreground" aria-labelledby="demo_video">Take a peek at the canvas</Label>
-                            <video title="Canvas demo video" id="demo_video" className="rounded-md relative shadow-[var(--shadow-card)] w-full h-auto" autoPlay muted loop playsInline>
-                                <source src="/demo/drawers_hero_video_solo.mp4" />
-                                Your browser does not support the video tag.
-                            </video>
+                            
+                            <div className="relative aspect-video">
+                                <video title="Canvas demo video" id="demo_video" className="z-2 absolute rounded-md relative shadow-[var(--shadow-card)] w-full h-auto" autoPlay muted loop playsInline>
+                                    <source src="/demo/drawers_hero_video_solo.mp4" />
+                                    Your browser does not support the video tag.
+                                </video>
+
+                                <div
+                                    className={'absolute top-0 left-0 h-full w-full z-1'}
+                                >
+                                    <Skeleton className="w-full h-full rounded-md" />
+                                </div>
+
+                            </div>
                         </div>
                     </div>
                 </div>
