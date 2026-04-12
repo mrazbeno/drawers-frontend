@@ -17,7 +17,6 @@ import { useSocket } from "@/providers/SocketProvider";
 import { useRouter } from "next/navigation";
 import { Label } from "@/components/ui/label";
 import Link from "next/link";
-import { VideoWithOverlaySkeleton } from "./(components)/VideoWithOverlaySkeleton";
 import { Skeleton } from "@/components/ui/skeleton";
 
 // TODO: put username validation params in the shared package 
