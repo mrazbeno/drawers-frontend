@@ -4,6 +4,7 @@ import * as React from "react";
 import { Undo2, Redo2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useResponsive } from "@/hooks/useResponsive";
+import { useDrawingRoom } from "../lib/drawing/react/DrawingRoomProvider";
 
 function Kbd(props: { children: React.ReactNode }) {
     return (
@@ -13,20 +14,26 @@ function Kbd(props: { children: React.ReactNode }) {
     );
 }
 
-export default function UndoRedoButtonsFloater(props: {
-    onUndo: () => void;
-    onRedo: () => void;
-    canUndo: boolean;
-    canRedo: boolean;
-}) {
+export default function UndoRedoButtonsFloater() {
     const { isMobile } = useResponsive();
+    const { runtime, publicState } = useDrawingRoom()
+    const { canRedo, canUndo } = publicState
+
+    const handleUndo = React.useCallback(() => {
+        runtime.undo();
+    }, [runtime]);
+
+    const handleRedo = React.useCallback(() => {
+        runtime.redo();
+    }, [runtime]);
+
 
     return (
         <div className="fixed right-0 bottom-0 m-2 z-30 flex gap-2">
             <Button
                 type="button"
-                onClick={props.onUndo}
-                disabled={!props.canUndo}
+                onClick={handleUndo}
+                disabled={!canUndo}
                 variant="secondary"
                 className="shadow-md gap-2"
                 title="Undo"
@@ -43,8 +50,8 @@ export default function UndoRedoButtonsFloater(props: {
 
             <Button
                 type="button"
-                onClick={props.onRedo}
-                disabled={!props.canRedo}
+                onClick={handleRedo}
+                disabled={!canRedo}
                 variant="secondary"
                 className="shadow-md gap-2"
                 title="Redo"

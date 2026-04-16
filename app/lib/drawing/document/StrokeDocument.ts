@@ -1,44 +1,29 @@
 import type {
     ActiveStrokeStream,
-    Bounds,
     DrawingCommand,
     IStrokeDocument,
     SceneSnapshot,
-    StrokeId,
-    StrokeRecord,
-    StrokePoint,
 } from "./types";
-import { StrokeGeometry } from "../geometry/StrokeGeometry";
+import { StrokeGeometry} from "../geometry/StrokeGeometry";
+import { StrokeHistoryRecord, StrokeBounds, StrokePoint} from "drawers-shared";
 
-type InternalEntry = {
-    stroke: StrokeRecord;
-    isVisible: boolean;
-};
-
-type SvgCache = {
-    dirtyFromIndex: number | null;
-};
 
 export class StrokeDocument implements IStrokeDocument {
     private background: string | null = "#ffffff";
 
-    private entries: InternalEntry[] = [];
+    private entries: StrokeHistoryRecord[] = [];
     private activeStreams = new Map<string, ActiveStrokeStream>();
 
-    private visibleDocumentBounds: Bounds | null = null;
+    private visibleDocumentBounds: StrokeBounds | null = null;
     private areBoundsDirty = false;
-
-    private svgCache: SvgCache = {
-        dirtyFromIndex: 0,
-    };
 
     private listeners = new Set<() => void>();
 
-    apply(command: DrawingCommand): StrokeRecord | null {
+    apply(command: DrawingCommand): StrokeHistoryRecord | null {
         switch (command.type) {
             case "stroke_begin": {
                 this.beginStroke(
-                    command.streamId,
+                    command.roomId,
                     command.point,
                     command.brushSettings,
                     command.userId
@@ -48,19 +33,19 @@ export class StrokeDocument implements IStrokeDocument {
             }
 
             case "stroke_append": {
-                this.appendToStroke(command.streamId, command.points);
+                this.appendToStroke(command.roomId, command.points);
                 this.emit();
                 return null;
             }
 
             case "stroke_commit": {
-                const committed = this.commitStroke(command.streamId, command.strokeId);
+                const committed = this.commitStroke(command.roomId, command.strokeId);
                 this.emit();
                 return committed;
             }
 
             case "stroke_cancel": {
-                this.cancelStroke(command.streamId);
+                this.cancelStroke(command.roomId);
                 this.emit();
                 return null;
             }
@@ -89,30 +74,30 @@ export class StrokeDocument implements IStrokeDocument {
         }
     }
 
-    getStrokeById(id: StrokeId): StrokeRecord | undefined {
-        return this.entries.find((entry) => entry.stroke.id === id)?.stroke;
+    getStrokeById(id: string): StrokeHistoryRecord | undefined {
+        return this.entries.find((entry) => entry.id === id);
     }
 
-    getCommittedStrokes(): StrokeRecord[] {
-        return this.entries.map((entry) => entry.stroke);
+    getCommittedStrokes(): StrokeHistoryRecord[] {
+        return this.entries.map((entry) => entry);
     }
 
-    getVisibleCommittedStrokes(): StrokeRecord[] {
+    getVisibleCommittedStrokes(): StrokeHistoryRecord[] {
         return this.entries
             .filter((entry) => entry.isVisible)
-            .map((entry) => entry.stroke);
+            .map((entry) => entry);
     }
 
     getActiveStreams(): ActiveStrokeStream[] {
         return Array.from(this.activeStreams.values()).map((stream) => ({
-            streamId: stream.streamId,
+            roomId: stream.roomId,
             userId: stream.userId,
             brushSettings: stream.brushSettings,
             points: [...stream.points],
         }));
     }
 
-    getDocumentBounds(): Bounds | null {
+    getDocumentBounds(): StrokeBounds | null {
         this.recomputeBoundsIfNeeded();
         return this.visibleDocumentBounds;
     }
@@ -134,7 +119,7 @@ export class StrokeDocument implements IStrokeDocument {
 
                 return [
                     {
-                        id: stream.streamId,
+                        id: stream.roomId,
                         svgPath,
                         brushColor: stream.brushSettings.brushColor,
                     },
@@ -197,7 +182,6 @@ ${paths}
         this.activeStreams.clear();
         this.visibleDocumentBounds = null;
         this.areBoundsDirty = false;
-        this.svgCache.dirtyFromIndex = 0;
         this.emit();
     }
 
@@ -208,16 +192,11 @@ ${paths}
         };
     }
 
-    importCommittedStroke(stroke: StrokeRecord): void {
+    importCommittedStroke(stroke: StrokeHistoryRecord): void {
         const normalized = this.normalizeIncomingStroke(stroke);
-        const insertIndex = this.entries.length;
 
-        this.entries.push({
-            stroke: normalized,
-            isVisible: true,
-        });
+        this.entries.push(normalized);
 
-        this.markSvgDirtyFrom(insertIndex);
         this.visibleDocumentBounds = StrokeGeometry.unionBounds(
             this.visibleDocumentBounds,
             normalized.bounds
@@ -226,16 +205,12 @@ ${paths}
         this.emit();
     }
 
-    importSnapshot(strokes: StrokeRecord[]): void {
-        this.entries = strokes.map((stroke) => ({
-            stroke: this.normalizeIncomingStroke(stroke),
-            isVisible: true,
-        }));
+    importSnapshot(strokes: StrokeHistoryRecord[]): void {
+        this.entries = strokes.map((stroke) => this.normalizeIncomingStroke(stroke));
 
         this.activeStreams.clear();
         this.visibleDocumentBounds = null;
         this.areBoundsDirty = true;
-        this.svgCache.dirtyFromIndex = 0;
 
         this.emit();
     }
@@ -247,34 +222,34 @@ ${paths}
     }
 
     private beginStroke(
-        streamId: string,
+        roomId: string,
         point: StrokePoint,
-        brushSettings: StrokeRecord["brushSettings"],
+        brushSettings: StrokeHistoryRecord["brushSettings"],
         userId?: string
     ): void {
         const stabilizedPoints: StrokePoint[] = [point, point];
 
-        this.activeStreams.set(streamId, {
-            streamId,
+        this.activeStreams.set(roomId, {
+            roomId,
             userId,
             brushSettings,
             points: stabilizedPoints,
         });
     }
 
-    private appendToStroke(streamId: string, points: StrokePoint[]): void {
+    private appendToStroke(roomId: string, points: StrokePoint[]): void {
         if (points.length === 0) return;
 
-        const stream = this.activeStreams.get(streamId);
+        const stream = this.activeStreams.get(roomId);
         if (!stream) return;
 
         stream.points.push(...points);
     }
 
-    private commitStroke(streamId: string, strokeId: string | null): StrokeRecord | null {
-        const stream = this.activeStreams.get(streamId);
+    private commitStroke(roomId: string, strokeId: string | null): StrokeHistoryRecord | null {
+        const stream = this.activeStreams.get(roomId);
         if (!stream || stream.points.length === 0) {
-            this.activeStreams.delete(streamId);
+            this.activeStreams.delete(roomId);
             return null;
         }
 
@@ -288,29 +263,24 @@ ${paths}
             stream.brushSettings
         );
 
-        this.activeStreams.delete(streamId);
+        this.activeStreams.delete(roomId);
 
         if (!bounds) return null;
 
         if (strokeId === null) 
             strokeId = StrokeGeometry.createStrokeId() 
   
-        const stroke: StrokeRecord = {
+        const stroke: StrokeHistoryRecord = {
             id: strokeId,
             userId: stream.userId,
             svgPath,
             brushSettings: stream.brushSettings,
             bounds,
             createdAt: Date.now(),
+            isVisible: true
         };
 
-        const insertIndex = this.entries.length;
-        this.entries.push({
-            stroke,
-            isVisible: true,
-        });
-
-        this.markSvgDirtyFrom(insertIndex);
+        this.entries.push(stroke);
         this.visibleDocumentBounds = StrokeGeometry.unionBounds(
             this.visibleDocumentBounds,
             bounds
@@ -319,46 +289,36 @@ ${paths}
         return stroke;
     }
 
-    private cancelStroke(streamId: string): void {
-        this.activeStreams.delete(streamId);
+    private cancelStroke(roomId: string): void {
+        this.activeStreams.delete(roomId);
     }
 
-    private setStrokeVisibility(strokeId: StrokeId, isVisible: boolean): void {
-        const index = this.entries.findIndex((entry) => entry.stroke.id === strokeId);
+    private setStrokeVisibility(strokeId: string, isVisible: boolean): void {
+        const index = this.entries.findIndex((entry) => entry.id === strokeId);
         if (index === -1) return;
 
         const entry = this.entries[index];
         if (entry.isVisible === isVisible) return;
 
         entry.isVisible = isVisible;
-        this.markSvgDirtyFrom(index);
         this.areBoundsDirty = true;
-    }
-
-    private markSvgDirtyFrom(index: number): void {
-        if (this.svgCache.dirtyFromIndex === null) {
-            this.svgCache.dirtyFromIndex = index;
-            return;
-        }
-
-        this.svgCache.dirtyFromIndex = Math.min(this.svgCache.dirtyFromIndex, index);
     }
 
     private recomputeBoundsIfNeeded(): void {
         if (!this.areBoundsDirty) return;
 
-        let nextBounds: Bounds | null = null;
+        let nextBounds: StrokeBounds | null = null;
 
         for (const entry of this.entries) {
             if (!entry.isVisible) continue;
-            nextBounds = StrokeGeometry.unionBounds(nextBounds, entry.stroke.bounds);
+            nextBounds = StrokeGeometry.unionBounds(nextBounds, entry.bounds);
         }
 
         this.visibleDocumentBounds = nextBounds;
         this.areBoundsDirty = false;
     }
 
-    private normalizeIncomingStroke(stroke: StrokeRecord): StrokeRecord {
+    private normalizeIncomingStroke(stroke: StrokeHistoryRecord): StrokeHistoryRecord {
         return {
             id: stroke.id || StrokeGeometry.createStrokeId(),
             userId: stroke.userId,
@@ -366,6 +326,7 @@ ${paths}
             brushSettings: stroke.brushSettings,
             bounds: stroke.bounds,
             createdAt: stroke.createdAt ?? Date.now(),
+            isVisible: stroke.isVisible
         };
     }
 }

@@ -3,87 +3,49 @@ import type {
     DrawEndEvent,
     DrawStartEvent,
     DrawUpdateEvent,
+    StrokePoint,
+    StrokeHistoryRecord
 } from "drawers-shared";
-import type { StrokePoint, StrokeRecord } from "../document/types";
 import { TypedSocket } from "../../TypedSocket";
 
-type RemoteStrokeBeginPayload = {
-    authorId: string;
-    streamId: string;
+type EnsuredDrawStartEvent = {
+    userId: string;
+    roomId: string;
     point: StrokePoint;
     brushSettings: BrushSettings;
 };
-
-type RemoteStrokeAppendPayload = {
-    authorId: string;
-    streamId: string;
-    points: StrokePoint[];
-};
-
-type RemoteStrokeCommitPayload = {
-    strokeId: string
-    authorId: string;
-    streamId: string;
-};
-
-export interface StrokeBounds {
-  minX: number;
-  minY: number;
-  maxX: number;
-  maxY: number;
-}
-
-export interface StrokeHistoryRecord {
-  id: string;
-  userId?: string;
-  brushSettings: BrushSettings;
-  svgPath: string;
-  bounds: StrokeBounds;
-  createdAt: number;
-}
 
 export interface ICollaborationBridge {
     attach(): void;
     detach(): void;
 
-    sendStrokeBegin(params: {
-        strokeId: string
-        streamId: string;
-        point: StrokePoint;
-        brushSettings: BrushSettings;
-    }): void;
+    sendStrokeBegin(params: {points: StrokePoint[], newBrushSettings?: BrushSettings }): void;
 
-    sendStrokeAppend(params: {
-        streamId: string;
-        points: StrokePoint[];
-    }): void;
+    sendStrokeAppend(params: {points: StrokePoint[]}): void;
 
-    sendStrokeCommit(params: {
-        streamId: string;
-        strokeId: string
-    }): void;
+    sendStrokeCommit(params: {strokeId: string}): void;
 
     sendClear(): void;
-    sendSnapshot(snapshot: StrokeRecord[], targetUserId: string): void;
+    sendSnapshot(snapshot: StrokeHistoryRecord[], targetUserId: string): void;
     requestSnapshot(targetUserId: string): void;
     requestBrushStates(targetUserId: string): void;
     sendBrushState(targetUserId: string, brushSettings: BrushSettings): void;
 
     subscribeRemoteStrokeBegin(
-        listener: (payload: RemoteStrokeBeginPayload) => void
+        listener: (payload: EnsuredDrawStartEvent) => void
     ): () => void;
 
     subscribeRemoteStrokeAppend(
-        listener: (payload: RemoteStrokeAppendPayload) => void
+        listener: (payload: DrawUpdateEvent) => void
     ): () => void;
 
     subscribeRemoteStrokeCommit(
-        listener: (payload: RemoteStrokeCommitPayload) => void
+        listener: (payload: DrawEndEvent) => void
     ): () => void;
 
     subscribeRemoteClear(listener: () => void): () => void;
     subscribeSnapshotRequest(listener: (targetUserId: string) => void): () => void;
-    subscribeSnapshot(listener: (snapshot: StrokeRecord[]) => void): () => void;
+    subscribeSnapshot(listener: (snapshot: StrokeHistoryRecord[]) => void): () => void;
     subscribeBrushStateRequest(listener: (targetUserId: string) => void): () => void;
     subscribeBrushState(listener: (payload: {
         userId: string;
@@ -95,11 +57,11 @@ export interface ICollaborationBridge {
     sendStrokeShow(strokeId: string): void;
 
     subscribeRemoteStrokeHide(
-        listener: (payload: { authorId: string; strokeId: string }) => void
+        listener: (payload: { userId: string; strokeId: string }) => void
     ): () => void;
 
     subscribeRemoteStrokeShow(
-        listener: (payload: { authorId: string; strokeId: string }) => void
+        listener: (payload: { userId: string; strokeId: string }) => void
     ): () => void;
 
 
@@ -111,20 +73,22 @@ export interface ICollaborationBridge {
 
 }
 
+
+
 export class CollaborationBridge implements ICollaborationBridge {
     private socket: TypedSocket;
     private roomId: string;
     private userId: string;
 
-    private beginListeners = new Set<(payload: RemoteStrokeBeginPayload) => void>();
-    private appendListeners = new Set<(payload: RemoteStrokeAppendPayload) => void>();
-    private commitListeners = new Set<(payload: RemoteStrokeCommitPayload) => void>();
+    private beginListeners = new Set<(payload: EnsuredDrawStartEvent) => void>();
+    private appendListeners = new Set<(payload: DrawUpdateEvent) => void>();
+    private commitListeners = new Set<(payload: DrawEndEvent) => void>();
     private clearListeners = new Set<() => void>();
-    private strokeHideListeners = new Set<(payload: { authorId: string; strokeId: string }) => void>();
-    private strokeShowListeners = new Set<(payload: { authorId: string; strokeId: string }) => void>();
+    private strokeHideListeners = new Set<(payload: { userId: string; strokeId: string }) => void>();
+    private strokeShowListeners = new Set<(payload: { userId: string; strokeId: string }) => void>();
     private cursorMoveListeners = new Set<(payload: { userId: string; x: number; y: number }) => void>();
     private snapshotRequestListeners = new Set<(targetUserId: string) => void>();
-    private snapshotListeners = new Set<(snapshot: StrokeRecord[]) => void>();
+    private snapshotListeners = new Set<(snapshot: StrokeHistoryRecord[]) => void>();
     private brushStateRequestListeners = new Set<(targetUserId: string) => void>();
     private brushStateListeners = new Set<(payload: {
         userId: string;
@@ -132,39 +96,46 @@ export class CollaborationBridge implements ICollaborationBridge {
         brushSettings: BrushSettings;
     }) => void>();
 
-    private remoteStreamIds = new Map<string, string>();
+    private remoteroomIds = new Map<string, string>();
+
+    private remoteBrushSettings = new Map<string, BrushSettings>();
 
     private boundDrawStart = (data: DrawStartEvent) => {
         if (data.userId === this.userId) return;
         if (data.points.length === 0) return;
 
-
         const firstPoint = data.points[0] as StrokePoint;
-        const streamId = this.getOrCreateRemoteStreamId(data.userId);
+        const roomId = this.getOrCreateRemoteroomId(data.userId);
 
-        const brushSettings = data.newBrushSettings;
-        if (!brushSettings) return;
+        const brushSettings =
+            data.newBrushSettings ?? this.remoteBrushSettings.get(data.userId);
+
+        if (!brushSettings) {
+            throw new Error("Draw start event: referenced remote brush config not found.");
+        }
 
         for (const listener of this.beginListeners) {
             listener({
-                authorId: data.userId,
-                streamId,
+                userId: data.userId,
+                roomId,
                 point: firstPoint,
                 brushSettings,
             });
         }
+
+        this.remoteBrushSettings.set(data.userId, brushSettings);
     };
 
     private boundDrawUpdate = (data: DrawUpdateEvent) => {
         if (data.userId === this.userId) return;
         if (data.points.length === 0) return;
 
-        const streamId = this.getOrCreateRemoteStreamId(data.userId);
+        const roomId = this.getOrCreateRemoteroomId(data.userId);
 
         for (const listener of this.appendListeners) {
             listener({
-                authorId: data.userId,
-                streamId,
+                userId: data.userId,
+                roomId,
                 points: data.points as StrokePoint[],
             });
         }
@@ -173,13 +144,13 @@ export class CollaborationBridge implements ICollaborationBridge {
     private boundDrawEnd = (data: DrawEndEvent) => {
         if (data.userId === this.userId) return;
 
-        const streamId = this.getOrCreateRemoteStreamId(data.userId);
+        const roomId = this.getOrCreateRemoteroomId(data.userId);
 
         if (data.points.length > 0) {
             for (const listener of this.appendListeners) {
                 listener({
-                    authorId: data.userId,
-                    streamId,
+                    userId: data.userId,
+                    roomId,
                     points: data.points as StrokePoint[],
                 });
             }
@@ -188,12 +159,13 @@ export class CollaborationBridge implements ICollaborationBridge {
         for (const listener of this.commitListeners) {
             listener({
                 strokeId: data.strokeId,
-                authorId: data.userId,
-                streamId,
+                userId: data.userId,
+                roomId,
+                points: data.points
             });
         }
 
-        this.remoteStreamIds.delete(data.userId);
+        this.remoteroomIds.delete(data.userId);
     };
 
 
@@ -202,7 +174,7 @@ export class CollaborationBridge implements ICollaborationBridge {
 
         for (const listener of this.strokeHideListeners) {
             listener({
-                authorId: data.userId,
+                userId: data.userId,
                 strokeId: data.strokeId,
             });
         }
@@ -213,7 +185,7 @@ export class CollaborationBridge implements ICollaborationBridge {
 
         for (const listener of this.strokeShowListeners) {
             listener({
-                authorId: data.userId,
+                userId: data.userId,
                 strokeId: data.strokeId,
             });
         }
@@ -252,7 +224,7 @@ export class CollaborationBridge implements ICollaborationBridge {
         if (data.targetUserId !== this.userId) return;
 
         for (const listener of this.snapshotListeners) {
-            listener(data.snapshot as StrokeRecord[]);
+            listener(data.snapshot as StrokeHistoryRecord[]);
         }
     };
 
@@ -272,6 +244,8 @@ export class CollaborationBridge implements ICollaborationBridge {
     }) => {
         if (data.targetUserId !== this.userId) return;
         if (data.userId === this.userId) return;
+
+        this.remoteBrushSettings.set(data.userId, data.brushSettings)
 
         for (const listener of this.brushStateListeners) {
             listener(data);
@@ -318,25 +292,18 @@ export class CollaborationBridge implements ICollaborationBridge {
         this.socket.off("brush_state", this.boundBrushState);
     }
 
-    sendStrokeBegin(params: {
-        streamId: string;
-        point: StrokePoint;
-        brushSettings: BrushSettings;
-    }): void {
+    sendStrokeBegin(params: {points: StrokePoint[], newBrushSettings?: BrushSettings }): void {
         const payload: DrawStartEvent = {
             roomId: this.roomId,
             userId: this.userId,
-            points: [params.point, params.point],
-            newBrushSettings: params.brushSettings,
+            points: params.points,
+            newBrushSettings: params.newBrushSettings,
         };
 
         this.socket.emit("draw_start", payload);
     }
 
-    sendStrokeAppend(params: {
-        streamId: string;
-        points: StrokePoint[];
-    }): void {
+    sendStrokeAppend(params: {points: StrokePoint[]}): void {
         if (params.points.length === 0) return;
 
         const payload: DrawUpdateEvent = {
@@ -348,17 +315,14 @@ export class CollaborationBridge implements ICollaborationBridge {
         this.socket.emit("draw_update", payload);
     }
 
-    sendStrokeCommit(params: {
-        strokeId: string;
-        streamId: string;
-    }): void {
+    sendStrokeCommit(params: {strokeId: string}): void {
         const payload: DrawEndEvent = {
             strokeId: params.strokeId,
             roomId: this.roomId,
             userId: this.userId,
             points: [],
         };
-        
+
         this.socket.emit("draw_end", payload);
     }
 
@@ -370,30 +334,30 @@ export class CollaborationBridge implements ICollaborationBridge {
     }
 
     sendStrokeHide(strokeId: string): void {
-    this.socket.emit("stroke_hide", {
-        roomId: this.roomId,
-        userId: this.userId,
-        strokeId,
-    });
-}
+        this.socket.emit("stroke_hide", {
+            roomId: this.roomId,
+            userId: this.userId,
+            strokeId,
+        });
+    }
 
-sendStrokeShow(strokeId: string): void {
-    this.socket.emit("stroke_show", {
-        roomId: this.roomId,
-        userId: this.userId,
-        strokeId,
-    });
-}
+    sendStrokeShow(strokeId: string): void {
+        this.socket.emit("stroke_show", {
+            roomId: this.roomId,
+            userId: this.userId,
+            strokeId,
+        });
+    }
 
     subscribeRemoteStrokeHide(
-        listener: (payload: { authorId: string; strokeId: string }) => void
+        listener: (payload: { userId: string; strokeId: string }) => void
     ): () => void {
         this.strokeHideListeners.add(listener);
         return () => this.strokeHideListeners.delete(listener);
     }
 
     subscribeRemoteStrokeShow(
-        listener: (payload: { authorId: string; strokeId: string }) => void
+        listener: (payload: { userId: string; strokeId: string }) => void
     ): () => void {
         this.strokeShowListeners.add(listener);
         return () => this.strokeShowListeners.delete(listener);
@@ -415,7 +379,7 @@ sendStrokeShow(strokeId: string): void {
         return () => this.cursorMoveListeners.delete(listener);
     }
 
-    sendSnapshot(snapshot: StrokeRecord[], targetUserId: string): void {
+    sendSnapshot(snapshot: StrokeHistoryRecord[], targetUserId: string): void {
         this.socket.emit("canvas_snapshot", {
             targetUserId,
             snapshot: snapshot as any,
@@ -445,21 +409,21 @@ sendStrokeShow(strokeId: string): void {
     }
 
     subscribeRemoteStrokeBegin(
-        listener: (payload: RemoteStrokeBeginPayload) => void
+        listener: (payload: EnsuredDrawStartEvent) => void
     ): () => void {
         this.beginListeners.add(listener);
         return () => this.beginListeners.delete(listener);
     }
 
     subscribeRemoteStrokeAppend(
-        listener: (payload: RemoteStrokeAppendPayload) => void
+        listener: (payload: DrawUpdateEvent) => void
     ): () => void {
         this.appendListeners.add(listener);
         return () => this.appendListeners.delete(listener);
     }
 
     subscribeRemoteStrokeCommit(
-        listener: (payload: RemoteStrokeCommitPayload) => void
+        listener: (payload: DrawEndEvent) => void
     ): () => void {
         this.commitListeners.add(listener);
         return () => this.commitListeners.delete(listener);
@@ -475,7 +439,7 @@ sendStrokeShow(strokeId: string): void {
         return () => this.snapshotRequestListeners.delete(listener);
     }
 
-    subscribeSnapshot(listener: (snapshot: StrokeRecord[]) => void): () => void {
+    subscribeSnapshot(listener: (snapshot: StrokeHistoryRecord[]) => void): () => void {
         this.snapshotListeners.add(listener);
         return () => this.snapshotListeners.delete(listener);
     }
@@ -494,17 +458,17 @@ sendStrokeShow(strokeId: string): void {
         return () => this.brushStateListeners.delete(listener);
     }
 
-    
 
-    private getOrCreateRemoteStreamId(authorId: string): string {
-        const existing = this.remoteStreamIds.get(authorId);
+
+    private getOrCreateRemoteroomId(userId: string): string {
+        const existing = this.remoteroomIds.get(userId);
         if (existing) return existing;
 
-        const next = `remote_${authorId}_${Date.now()}_${Math.random()
+        const next = `remote_${userId}_${Date.now()}_${Math.random()
             .toString(36)
             .slice(2, 8)}`;
 
-        this.remoteStreamIds.set(authorId, next);
+        this.remoteroomIds.set(userId, next);
         return next;
     }
 }

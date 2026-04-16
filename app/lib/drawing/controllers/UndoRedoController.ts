@@ -1,11 +1,11 @@
-import type { IStrokeDocument, StrokeId } from "../document/types";
+import type { IStrokeDocument } from "../document/types";
 
 export type UndoRedoOp =
     | { type: "hide"; strokeId: string }
     | { type: "show"; strokeId: string };
 
 export interface IUndoRedoController {
-    recordCommittedStroke(strokeId: StrokeId): void;
+    recordCommittedStroke(strokeId: string): void;
 
     undo(): UndoRedoOp | null;
     redo(): UndoRedoOp | null;
@@ -19,14 +19,14 @@ export interface IUndoRedoController {
 export class UndoRedoController implements IUndoRedoController {
     private document: IStrokeDocument;
 
-    private undoStack: StrokeId[] = [];
-    private redoStack: StrokeId[] = [];
+    private undoStack: string[] = [];
+    private redoStack: string[] = [];
 
     constructor(params: { document: IStrokeDocument }) {
         this.document = params.document;
     }
 
-    recordCommittedStroke(strokeId: StrokeId): void {
+    recordCommittedStroke(strokeId: string): void {
         this.undoStack.push(strokeId);
         this.redoStack = [];
     }

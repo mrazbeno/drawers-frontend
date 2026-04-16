@@ -13,6 +13,8 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { HexColorPicker } from "react-colorful";
 import { getSvgPathFromStroke } from "../lib/utility";
+import { useDrawingRoom } from "../lib/drawing/react/DrawingRoomProvider";
+import { HARD_PENCIL_PRESET_STROKE, SOFT_BRUSH_PRESET_STROKE } from "../lib/drawing/document/types";
 
 const paletteColorCodes = [
     "#000000",
@@ -31,46 +33,6 @@ const paletteColorCodes = [
     "#BFFF00",
     "#000080",
 ]
-
-export const SOFT_BRUSH_PRESET_STROKE: StrokeOptions = {
-    size: 16,
-    thinning: 0.5,
-    smoothing: 0.5,
-    streamline: 0.5,
-    simulatePressure: true,
-
-    easing: (t) => t,
-    start: {
-        taper: 100,
-        easing: (t) => t,
-        cap: true
-    },
-    end: {
-        taper: 100,
-        easing: (t) => t,
-        cap: true
-    }
-};
-
-export const HARD_PENCIL_PRESET_STROKE: StrokeOptions = {
-    size: 16,
-    thinning: 0,
-    smoothing: 0.5,
-    streamline: 0.5,
-    simulatePressure: false,
-
-    easing: (t) => t,
-    start: {
-        taper: 0,
-        easing: (t) => t,
-        cap: true
-    },
-    end: {
-        taper: 0,
-        easing: (t) => t,
-        cap: true
-    }
-};
 
 function generateSPoints(
     numPoints = 200,
@@ -96,12 +58,7 @@ function generateSPoints(
     return points
 }
 
-interface BrushSettingsPanelProps {
-    brushSettings: BrushSettings;
-    onBrushSettingsChange: (next: BrushSettings) => void;
-}
-
-export default function BrushSettingsPanel({ brushSettings, onBrushSettingsChange }: BrushSettingsPanelProps) {
+export default function BrushSettingsPanel() {
 
     const previewCanvasRef = React.useRef<HTMLCanvasElement | null>(null);
     const previewCtxRef = React.useRef<CanvasRenderingContext2D | null>(null);
@@ -110,6 +67,8 @@ export default function BrushSettingsPanel({ brushSettings, onBrushSettingsChang
     const [showStrokePts, setShowStrokePts] = React.useState<boolean>(false)
     const [isColorPickDialogOpen, setIsColorPickDialogOpen] = React.useState(false);
     const [color, setColor] = React.useState("#aabbcc");
+
+    const {brushSettings, setBrushSettings} = useDrawingRoom()
 
     const MAX_BRUSH_SIZE = 100
 
@@ -127,7 +86,7 @@ export default function BrushSettingsPanel({ brushSettings, onBrushSettingsChang
     const sliderValue = Math.sqrt(brushSize)
 
     function updateBrushSettings(next: Partial<BrushSettings>) {
-        onBrushSettingsChange({
+        setBrushSettings({
             ...brushSettings,
             ...next,
         })
