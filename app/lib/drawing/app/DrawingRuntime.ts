@@ -1,15 +1,14 @@
-import type { BrushSettings } from "drawers-shared";
+import type { BrushSettings, StrokeHistoryRecord } from "drawers-shared";
 import { throttleRaf } from "@/app/lib/utility";
-import type {
-    IStrokeDocument,
-    StrokeRecord,
+import {
+    DEFAULT_BRUSH_SETTINGS,
+    type IStrokeDocument,
 } from "../document/types";
 import { StrokeDocument } from "../document/StrokeDocument";
 import type { ICanvasWorldViewport } from "../viewport/CanvasWorldViewport";
 import { CanvasWorldViewport } from "../viewport/CanvasWorldViewport";
 import type {
     ILocalDrawingController,
-    ILocalDrawingCollabBridge,
 } from "../controllers/LocalDrawingController";
 import { LocalDrawingController } from "../controllers/LocalDrawingController";
 import type { IRemoteDrawingController } from "../controllers/RemoteDrawingController";
@@ -17,7 +16,7 @@ import { RemoteDrawingController } from "../controllers/RemoteDrawingController"
 import type { IUndoRedoController } from "../controllers/UndoRedoController";
 import { UndoRedoController } from "../controllers/UndoRedoController";
 import type { ICollaborationBridge } from "../collab/CollaborationBridge";
-import { DEFAULT_BRUSH_SETTINGS } from "@/app/(components)/BrushSettingsPanel";
+
 
 export type PublicState = {
     strokeCount: number;
@@ -49,8 +48,8 @@ export interface IDrawingRuntime {
         backgroundColor?: string | null;
     }): string | null;
 
-    getSnapshot(): StrokeRecord[];
-    loadSnapshot(snapshot: StrokeRecord[]): void;
+    getSnapshot(): StrokeHistoryRecord[];
+    loadSnapshot(snapshot: StrokeHistoryRecord[]): void;
 
     subscribeState(listener: () => void): () => void;
     subscribeView(listener: () => void): () => void;
@@ -120,7 +119,7 @@ export class DrawingRuntime implements IDrawingRuntime {
             viewport: this.viewport,
             document: this.document,
             initialBrushSettings: DEFAULT_BRUSH_SETTINGS,
-            collabBridge: params.collabBridge as ILocalDrawingCollabBridge | undefined,
+            collabBridge: params.collabBridge,
             userId: params.userId,
             undoRedoController: this.undoRedoController,
             onInteractionStateChange: (state) => {
@@ -136,6 +135,7 @@ export class DrawingRuntime implements IDrawingRuntime {
             this.remoteController = new RemoteDrawingController({
                 document: this.document,
                 bridge: params.collabBridge,
+                undoRedoController: this.undoRedoController
             });
 
             this.remoteController.setReady(false);
@@ -271,11 +271,11 @@ export class DrawingRuntime implements IDrawingRuntime {
         return this.document.exportSvg(options);
     }
 
-    getSnapshot(): StrokeRecord[] {
+    getSnapshot(): StrokeHistoryRecord[] {
         return this.document.getCommittedStrokes().map((stroke) => ({ ...stroke }));
     }
 
-    loadSnapshot(snapshot: StrokeRecord[]): void {
+    loadSnapshot(snapshot: StrokeHistoryRecord[]): void {
         this.document.importSnapshot(snapshot);
         this.undoRedoController.clearHistory();
         this.renderFromDocument();

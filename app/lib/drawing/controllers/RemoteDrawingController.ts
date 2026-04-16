@@ -1,5 +1,6 @@
 import type { IStrokeDocument } from "../document/types";
 import type { ICollaborationBridge } from "../collab/CollaborationBridge";
+import type { IUndoRedoController } from "./UndoRedoController";
 
 export interface IRemoteDrawingController {
     attach(): void;
@@ -13,17 +14,21 @@ export interface IRemoteDrawingController {
 export class RemoteDrawingController implements IRemoteDrawingController {
     private document: IStrokeDocument;
     private bridge: ICollaborationBridge;
+    private undoRedoController: IUndoRedoController
 
     private unsubscribers: Array<() => void> = [];
     private isReady = true;
     private queuedEvents: Array<() => void> = [];
 
+
     constructor(params: {
         document: IStrokeDocument;
         bridge: ICollaborationBridge;
+        undoRedoController: IUndoRedoController;
     }) {
         this.document = params.document;
         this.bridge = params.bridge;
+        this.undoRedoController = params.undoRedoController
     }
 
     attach(): void {
@@ -34,8 +39,8 @@ export class RemoteDrawingController implements IRemoteDrawingController {
                 this.queueOrRun(() => {
                     this.document.apply({
                         type: "stroke_begin",
-                        streamId: payload.streamId,
-                        userId: payload.authorId,
+                        roomId: payload.roomId,
+                        userId: payload.userId,
                         point: payload.point,
                         brushSettings: payload.brushSettings,
                     });
@@ -48,7 +53,7 @@ export class RemoteDrawingController implements IRemoteDrawingController {
                 this.queueOrRun(() => {
                     this.document.apply({
                         type: "stroke_append",
-                        streamId: payload.streamId,
+                        roomId: payload.roomId,
                         points: payload.points,
                     });
                 });
@@ -60,7 +65,7 @@ export class RemoteDrawingController implements IRemoteDrawingController {
                 this.queueOrRun(() => {                    
                     this.document.apply({
                         type: "stroke_commit",
-                        streamId: payload.streamId,
+                        roomId: payload.roomId,
                         strokeId: payload.strokeId
                     });
                 });
@@ -93,6 +98,7 @@ export class RemoteDrawingController implements IRemoteDrawingController {
             this.bridge.subscribeRemoteClear(() => {
                 this.queueOrRun(() => {
                     this.document.clear();
+                    this.undoRedoController.clearHistory()
                 });
             })
         );

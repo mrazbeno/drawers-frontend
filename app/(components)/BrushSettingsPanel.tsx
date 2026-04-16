@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { HexColorPicker } from "react-colorful";
 import { getSvgPathFromStroke } from "../lib/utility";
 import { useDrawingRoom } from "../lib/drawing/react/DrawingRoomProvider";
+import { HARD_PENCIL_PRESET_STROKE, SOFT_BRUSH_PRESET_STROKE } from "../lib/drawing/document/types";
 
 const paletteColorCodes = [
     "#000000",
@@ -32,53 +33,6 @@ const paletteColorCodes = [
     "#BFFF00",
     "#000080",
 ]
-
-
-
-export const SOFT_BRUSH_PRESET_STROKE: StrokeOptions = {
-    size: 16,
-    thinning: 0.5,
-    smoothing: 0.5,
-    streamline: 0.5,
-    simulatePressure: true,
-
-    easing: (t) => t,
-    start: {
-        taper: 100,
-        easing: (t) => t,
-        cap: true
-    },
-    end: {
-        taper: 100,
-        easing: (t) => t,
-        cap: true
-    }
-};
-
-export const HARD_PENCIL_PRESET_STROKE: StrokeOptions = {
-    size: 16,
-    thinning: 0,
-    smoothing: 0.5,
-    streamline: 0.5,
-    simulatePressure: false,
-
-    easing: (t) => t,
-    start: {
-        taper: 0,
-        easing: (t) => t,
-        cap: true
-    },
-    end: {
-        taper: 0,
-        easing: (t) => t,
-        cap: true
-    }
-};
-
-export const DEFAULT_BRUSH_SETTINGS: BrushSettings = {
-  strokeOptions: SOFT_BRUSH_PRESET_STROKE,
-  brushColor: "#000000",
-};
 
 function generateSPoints(
     numPoints = 200,

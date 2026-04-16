@@ -1,5 +1,5 @@
-import type { BrushSettings } from "drawers-shared";
-import type { IStrokeDocument, StrokePoint, StrokeRecord } from "../document/types";
+import type { BrushSettings, StrokePoint, StrokeHistoryRecord } from "drawers-shared";
+import type { IStrokeDocument} from "../document/types";
 import type {
     ICanvasWorldViewport,
     NormalizedPointerEvent,
@@ -7,6 +7,7 @@ import type {
 } from "../viewport/CanvasWorldViewport";
 import type { IUndoRedoController } from "./UndoRedoController";
 import { throttleRaf } from "@/app/lib/utility";
+import { ICollaborationBridge } from "../collab/CollaborationBridge";
 
 type PointerState = {
     pointerId: number;
@@ -26,18 +27,18 @@ type HistoryStateListener = () => void;
 
 export interface ILocalDrawingCollabBridge {
     sendStrokeBegin(params: {
-        streamId: string;
+        roomId: string;
         point: StrokePoint;
-        brushSettings: BrushSettings;
+        brushSettings?: BrushSettings;
     }): void;
 
     sendStrokeAppend(params: {
-        streamId: string;
+        roomId: string;
         points: StrokePoint[];
     }): void;
 
     sendStrokeCommit(params: {
-        streamId: string;
+        roomId: string;
         strokeId: string;
     }): void;
 
@@ -57,7 +58,7 @@ export interface ILocalDrawingController {
 export class LocalDrawingController implements ILocalDrawingController {
     private viewport: ICanvasWorldViewport;
     private document: IStrokeDocument;
-    private collabBridge?: ILocalDrawingCollabBridge;
+    private collabBridge?: ICollaborationBridge;
     private userId?: string;
     private undoRedoController?: IUndoRedoController;
     private onInteractionStateChange?: LocalInteractionListener;
@@ -78,6 +79,8 @@ export class LocalDrawingController implements ILocalDrawingController {
     private unsubscribePointer: (() => void) | null = null;
     private unsubscribeWheel: (() => void) | null = null;
 
+    private hasBrushChanged: boolean = false
+
     private flushPendingAppendPointsThrottled = throttleRaf(() => {
         this.flushPendingAppendPointsNow();
     });
@@ -95,7 +98,7 @@ export class LocalDrawingController implements ILocalDrawingController {
         viewport: ICanvasWorldViewport;
         document: IStrokeDocument;
         initialBrushSettings: BrushSettings;
-        collabBridge?: ILocalDrawingCollabBridge;
+        collabBridge?: ICollaborationBridge;
         userId?: string;
         undoRedoController?: IUndoRedoController;
         onInteractionStateChange?: LocalInteractionListener;
@@ -143,9 +146,12 @@ export class LocalDrawingController implements ILocalDrawingController {
         this.viewport.clearBrushCursor();
     }
 
+    
+
     setBrushSettings(brush: BrushSettings): void {
         this.brushSettings = brush;
         this.drawBrushCursorThrottled();
+        this.hasBrushChanged = true;
     }
 
     getBrushSettings(): BrushSettings {
@@ -215,7 +221,7 @@ export class LocalDrawingController implements ILocalDrawingController {
             if (this.isDrawing && this.activeStreamId) {
                 this.document.apply({
                     type: "stroke_cancel",
-                    streamId: this.activeStreamId,
+                    roomId: this.activeStreamId,
                 });
             }
 
@@ -240,15 +246,15 @@ export class LocalDrawingController implements ILocalDrawingController {
                 event.pressure || 0.5,
             ];
 
-            const streamId = this.createLocalStreamId();
+            const roomId = this.createLocalStreamId();
 
-            this.activeStreamId = streamId;
+            this.activeStreamId = roomId;
             this.isDrawing = true;
             this.drawPointerId = event.pointerId;
 
             this.document.apply({
                 type: "stroke_begin",
-                streamId,
+                roomId,
                 userId: this.userId,
                 point,
                 brushSettings: this.brushSettings,
@@ -256,11 +262,14 @@ export class LocalDrawingController implements ILocalDrawingController {
 
             this.pendingOutboundPoints = [];
 
+            const newBrushSettings = this.hasBrushChanged ? this.brushSettings : undefined
+
             this.collabBridge?.sendStrokeBegin({
-                streamId,
-                point,
-                brushSettings: this.brushSettings,
+                points: [point, point],
+                newBrushSettings
             });
+
+            this.hasBrushChanged = false;
 
             this.emitInteractionState();
         }
@@ -336,7 +345,7 @@ export class LocalDrawingController implements ILocalDrawingController {
 
         this.document.apply({
             type: "stroke_append",
-            streamId: this.activeStreamId,
+            roomId: this.activeStreamId,
             points: [point],
         });
 
@@ -358,7 +367,7 @@ export class LocalDrawingController implements ILocalDrawingController {
         if (this.isDrawing && this.drawPointerId === event.pointerId && this.activeStreamId) {
             const committed = this.document.apply({
                 type: "stroke_commit",
-                streamId: this.activeStreamId,
+                roomId: this.activeStreamId,
                 strokeId: null
             });
 
@@ -367,7 +376,6 @@ export class LocalDrawingController implements ILocalDrawingController {
             this.flushPendingAppendPointsNow();
 
             this.collabBridge?.sendStrokeCommit({
-                streamId: this.activeStreamId,
                 strokeId: committed?.id,
             });            
 
@@ -481,12 +489,11 @@ export class LocalDrawingController implements ILocalDrawingController {
         this.pendingOutboundPoints = [];
 
         this.collabBridge.sendStrokeAppend({
-            streamId: this.activeStreamId,
             points,
         });
     }
 
-    private onStrokeCommitted(stroke: StrokeRecord | null): void {
+    private onStrokeCommitted(stroke: StrokeHistoryRecord | null): void {
         if (!stroke) return;
         this.undoRedoController?.recordCommittedStroke(stroke.id);
         this.onHistoryStateChange?.();

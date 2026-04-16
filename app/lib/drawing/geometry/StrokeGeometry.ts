@@ -1,5 +1,4 @@
-import type { BrushSettings } from "drawers-shared";
-import type { Bounds, StrokePoint } from "../document/types";
+import type { BrushSettings, StrokePoint, StrokeBounds } from "drawers-shared";
 import { makeStroke } from "@/app/lib/utility";
 
 export class StrokeGeometry {
@@ -11,7 +10,7 @@ export class StrokeGeometry {
         return makeStroke(points, brush);
     }
 
-    static computeStrokeBounds(points: StrokePoint[], brush: BrushSettings): Bounds | null {
+    static computeStrokeBounds(points: StrokePoint[], brush: BrushSettings): StrokeBounds | null {
         if (points.length === 0) return null;
 
         let minX = Infinity;
@@ -37,7 +36,7 @@ export class StrokeGeometry {
         };
     }
 
-    static unionBounds(a: Bounds | null, b: Bounds | null): Bounds | null {
+    static unionBounds(a: StrokeBounds | null, b: StrokeBounds | null): StrokeBounds | null {
         if (!a) return b;
         if (!b) return a;
 

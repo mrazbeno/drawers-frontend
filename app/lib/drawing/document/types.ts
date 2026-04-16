@@ -7,24 +7,15 @@ import type {
 
 // TODO: type deduplication
 
-export type { StrokePoint };
-
-export type Bounds = StrokeBounds;
-
-export type StrokeId = string;
-export type StreamId = string;
-
-export type StrokeRecord = StrokeHistoryRecord;
-
 export type ActiveStrokeStream = {
-    streamId: StreamId;
+    roomId: string;
     userId?: string;
     brushSettings: BrushSettings;
     points: StrokePoint[];
 };
 
 export type SceneStroke = {
-    id: StrokeId;
+    id: string;
     svgPath: string;
     brushColor: string;
 };
@@ -32,53 +23,53 @@ export type SceneStroke = {
 export type SceneSnapshot = {
     committedStrokes: SceneStroke[];
     activeOverlays: SceneStroke[];
-    documentBounds: Bounds | null;
+    documentBounds: StrokeBounds | null;
     background: string | null;
 };
 
 export type DrawingCommand =
     | {
         type: "stroke_begin";
-        streamId: StreamId;
+        roomId: string;
         userId?: string;
         point: StrokePoint;
         brushSettings: BrushSettings;
     }
     | {
         type: "stroke_append";
-        streamId: StreamId;
+        roomId: string;
         points: StrokePoint[];
     }
     | {
         type: "stroke_commit";
-        streamId: StreamId;
-        strokeId: StrokeId | null;
+        roomId: string;
+        strokeId: string | null;
     }
     | {
         type: "stroke_cancel";
-        streamId: StreamId;
+        roomId: string;
     }
     | {
         type: "stroke_hide";
-        strokeId: StrokeId;
+        strokeId: string;
     }
     | {
         type: "stroke_show";
-        strokeId: StrokeId;
+        strokeId: string;
     }
     | {
         type: "document_clear";
     };
 
 export interface IStrokeDocument {
-    apply(command: DrawingCommand): StrokeRecord | null;
+    apply(command: DrawingCommand): StrokeHistoryRecord | null;
 
-    getStrokeById(id: StrokeId): StrokeRecord | undefined;
-    getCommittedStrokes(): StrokeRecord[];
-    getVisibleCommittedStrokes(): StrokeRecord[];
+    getStrokeById(id: string): StrokeHistoryRecord | undefined;
+    getCommittedStrokes(): StrokeHistoryRecord[];
+    getVisibleCommittedStrokes(): StrokeHistoryRecord[];
     getActiveStreams(): ActiveStrokeStream[];
 
-    getDocumentBounds(): Bounds | null;
+    getDocumentBounds(): StrokeBounds | null;
     getSceneSnapshot(): SceneSnapshot;
 
     exportSvg(options?: {
@@ -86,9 +77,54 @@ export interface IStrokeDocument {
         backgroundColor?: string | null;
     }): string | null;
 
-    importCommittedStroke(stroke: StrokeRecord): void;
-    importSnapshot(strokes: StrokeRecord[]): void;
+    importCommittedStroke(stroke: StrokeHistoryRecord): void;
+    importSnapshot(strokes: StrokeHistoryRecord[]): void;
 
     clear(): void;
     subscribe(listener: () => void): () => void;
 }
+
+export const SOFT_BRUSH_PRESET_STROKE: StrokeOptions = {
+    size: 16,
+    thinning: 0.5,
+    smoothing: 0.5,
+    streamline: 0.5,
+    simulatePressure: true,
+
+    easing: (t) => t,
+    start: {
+        taper: 100,
+        easing: (t) => t,
+        cap: true
+    },
+    end: {
+        taper: 100,
+        easing: (t) => t,
+        cap: true
+    }
+};
+
+export const HARD_PENCIL_PRESET_STROKE: StrokeOptions = {
+    size: 16,
+    thinning: 0,
+    smoothing: 0.5,
+    streamline: 0.5,
+    simulatePressure: false,
+
+    easing: (t) => t,
+    start: {
+        taper: 0,
+        easing: (t) => t,
+        cap: true
+    },
+    end: {
+        taper: 0,
+        easing: (t) => t,
+        cap: true
+    }
+};
+
+export const DEFAULT_BRUSH_SETTINGS: BrushSettings = {
+  strokeOptions: SOFT_BRUSH_PRESET_STROKE,
+  brushColor: "#000000",
+};

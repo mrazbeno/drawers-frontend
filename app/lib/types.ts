@@ -1,3 +1,5 @@
+import { BrushSettings } from "drawers-shared";
+
 export interface Vector2 { x: number; y: number }
 
 export interface ForeignUserState {
@@ -5,7 +7,7 @@ export interface ForeignUserState {
   username: string
   cursorPos: Vector2
   color: string
-  brushSettings?: any
+  brushSettings?: BrushSettings
 }
 
 export type ForeignUserMap = Map<string, ForeignUserState>
