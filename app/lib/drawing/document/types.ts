@@ -4,6 +4,7 @@ import type {
     StrokeHistoryRecord,
     StrokePoint,
 } from "drawers-shared";
+import { StrokeOptions } from "perfect-freehand";
 
 // TODO: type deduplication
 

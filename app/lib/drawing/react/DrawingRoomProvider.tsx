@@ -24,7 +24,6 @@ type DrawingRoomProviderProps = {
   socket: TypedSocket;
   roomId: string;
   userId: string;
-  initialBrushSettings: BrushSettings;
   children: React.ReactNode;
 };
 
@@ -32,7 +31,6 @@ export function DrawingRoomProvider({
   socket,
   roomId,
   userId,
-  initialBrushSettings,
   children,
 }: DrawingRoomProviderProps) {
   const runtimeRef = React.useRef<IDrawingRuntime | null>(null);
@@ -46,7 +44,6 @@ export function DrawingRoomProvider({
       socket,
       roomId,
       userId,
-      initialBrushSettings,
     });
   }
 
