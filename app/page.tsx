@@ -9,17 +9,14 @@ export default function HomePage() {
 };
 
 export async function generateMetadata(): Promise<Metadata> {
-  const title = "Collab drawing";
   const description =
     "Collaborate live with friends and draw together on a canvas.";
 
   return {
-    title,
     description,
     alternates: { canonical: "/" },
     openGraph: {
       url: "/",
-      title,
       description,
       type: "website",
       siteName: "Drawers",
@@ -28,7 +25,6 @@ export async function generateMetadata(): Promise<Metadata> {
     },
     twitter: {
       card: "summary_large_image",
-      title,
       description,
       images: ["/seo/og-main.jpeg"],
     },

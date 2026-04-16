@@ -1,11 +1,9 @@
 
 import { Geist, Geist_Mono } from "next/font/google"
-
 import "@/app/globals.css";
-import { SocketProvider } from "@/providers/SocketProvider"
 import {Toaster} from "@/components/ui/sonner"
-import { SidebarProvider } from "@/components/ui/sidebar";
 import { Metadata } from "next";
+import { DrawingRoomSessionProvider } from "./lib/drawing/react/DrawingRoomSessionProvider";
 
 const fontSans = Geist({
   subsets: ["latin"],
@@ -37,11 +35,9 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={`${fontSans.variable} ${fontMono.variable} font-sans antialiased dark`}>
         <div className="flex items-center flex-col md:flex-row justify-center h-svh w-svw">
-          <SocketProvider>
-            <SidebarProvider className="h-full">
-            {children}
-            </SidebarProvider>
-          </SocketProvider>
+          <DrawingRoomSessionProvider>
+              {children}
+          </DrawingRoomSessionProvider>
         </div>
         <Toaster/>
       </body>

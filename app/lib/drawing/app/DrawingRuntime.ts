@@ -1,6 +1,5 @@
 import type { BrushSettings } from "drawers-shared";
 import { throttleRaf } from "@/app/lib/utility";
-
 import type {
     IStrokeDocument,
     StrokeRecord,
@@ -18,15 +17,16 @@ import { RemoteDrawingController } from "../controllers/RemoteDrawingController"
 import type { IUndoRedoController } from "../controllers/UndoRedoController";
 import { UndoRedoController } from "../controllers/UndoRedoController";
 import type { ICollaborationBridge } from "../collab/CollaborationBridge";
+import { DEFAULT_BRUSH_SETTINGS } from "@/app/(components)/BrushSettingsPanel";
 
-type PublicState = {
+export type PublicState = {
     strokeCount: number;
     canUndo: boolean;
     canRedo: boolean;
     brushSettings: BrushSettings;
 };
 
-type InteractionState = {
+export type InteractionState = {
     isDrawing: boolean;
     isPanning: boolean;
 };
@@ -91,6 +91,7 @@ export class DrawingRuntime implements IDrawingRuntime {
     private interactionListeners = new Set<() => void>();
 
     private lastPublicStateKey = "";
+    private publicState: PublicState;
     private interactionState: InteractionState = {
         isDrawing: false,
         isPanning: false,
@@ -102,7 +103,6 @@ export class DrawingRuntime implements IDrawingRuntime {
     });
 
     constructor(params: {
-        initialBrushSettings: BrushSettings;
         document?: IStrokeDocument;
         viewport?: ICanvasWorldViewport;
         collabBridge?: ICollaborationBridge;
@@ -119,7 +119,7 @@ export class DrawingRuntime implements IDrawingRuntime {
         this.localController = new LocalDrawingController({
             viewport: this.viewport,
             document: this.document,
-            initialBrushSettings: params.initialBrushSettings,
+            initialBrushSettings: DEFAULT_BRUSH_SETTINGS,
             collabBridge: params.collabBridge as ILocalDrawingCollabBridge | undefined,
             userId: params.userId,
             undoRedoController: this.undoRedoController,
@@ -140,6 +140,13 @@ export class DrawingRuntime implements IDrawingRuntime {
 
             this.remoteController.setReady(false);
         }
+
+        this.publicState = {
+            strokeCount: this.document.getVisibleCommittedStrokes().length,
+            canUndo: this.undoRedoController.canUndo(),
+            canRedo: this.undoRedoController.canRedo(),
+            brushSettings: this.localController.getBrushSettings(),
+        };
 
         this.lastPublicStateKey = this.computePublicStateKey();
     }
@@ -174,6 +181,7 @@ export class DrawingRuntime implements IDrawingRuntime {
 
         this.renderFromDocument();
         this.mounted = true;
+        this.rebuildPublicState();
         this.emitState();
         this.emitView();
         this.emitInteraction();
@@ -197,6 +205,7 @@ export class DrawingRuntime implements IDrawingRuntime {
         this.viewport.unmount();
 
         this.mounted = false;
+        this.rebuildPublicState();
         this.emitState();
         this.emitView();
         this.emitInteraction();
@@ -228,7 +237,7 @@ export class DrawingRuntime implements IDrawingRuntime {
     }
 
     getInteractionState(): InteractionState {
-        return { ...this.interactionState };
+        return this.interactionState;
     }
 
     resize(): void {
@@ -275,12 +284,7 @@ export class DrawingRuntime implements IDrawingRuntime {
     }
 
     getPublicState(): PublicState {
-        return {
-            strokeCount: this.document.getVisibleCommittedStrokes().length,
-            canUndo: this.undoRedoController.canUndo(),
-            canRedo: this.undoRedoController.canRedo(),
-            brushSettings: this.localController.getBrushSettings(),
-        };
+        return this.publicState;
     }
 
     undo(): void {
@@ -351,8 +355,22 @@ export class DrawingRuntime implements IDrawingRuntime {
         }
     }
 
+    private rebuildPublicState(): void {
+        this.publicState = {
+            strokeCount: this.document.getVisibleCommittedStrokes().length,
+            canUndo: this.undoRedoController.canUndo(),
+            canRedo: this.undoRedoController.canRedo(),
+            brushSettings: this.localController.getBrushSettings(),
+        };
+    }
+
     private computePublicStateKey(): string {
-        const state = this.getPublicState();
+        const state = {
+            strokeCount: this.document.getVisibleCommittedStrokes().length,
+            canUndo: this.undoRedoController.canUndo(),
+            canRedo: this.undoRedoController.canRedo(),
+            brushSettings: this.localController.getBrushSettings(),
+        };
         const brush = state.brushSettings;
 
         return JSON.stringify({
@@ -376,6 +394,7 @@ export class DrawingRuntime implements IDrawingRuntime {
         const nextKey = this.computePublicStateKey();
         if (!force && nextKey === this.lastPublicStateKey) return;
 
+        this.rebuildPublicState();
         this.lastPublicStateKey = nextKey;
         this.emitState();
     }

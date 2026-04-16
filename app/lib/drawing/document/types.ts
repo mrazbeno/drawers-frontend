@@ -5,6 +5,8 @@ import type {
     StrokePoint,
 } from "drawers-shared";
 
+// TODO: type deduplication
+
 export type { StrokePoint };
 
 export type Bounds = StrokeBounds;

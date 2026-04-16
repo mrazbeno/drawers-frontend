@@ -7,6 +7,8 @@ import type {
 import type { StrokePoint, StrokeRecord } from "../document/types";
 import { TypedSocket } from "../../TypedSocket";
 
+// TODO: type deduplication
+
 type RemoteStrokeBeginPayload = {
     authorId: string;
     streamId: string;

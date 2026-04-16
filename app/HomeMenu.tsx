@@ -13,11 +13,11 @@ import {
 } from "@/components/ui/dialog";
 import { Pencil, Users, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
-import { useSocket } from "@/providers/SocketProvider";
 import { useRouter } from "next/navigation";
 import { Label } from "@/components/ui/label";
 import Link from "next/link";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useDrawingRoomSession } from "./lib/drawing/react/DrawingRoomSessionProvider";
 
 // TODO: put username validation params in the shared package 
 
@@ -56,7 +56,7 @@ export default function HomeMenu() {
     const [isEnteringRoom, setIsEnteringRoom] = useState(false);
 
     const router = useRouter()
-    const socket = useSocket()
+    const { joinRoom, disconnect } = useDrawingRoomSession()
 
     const isBusy = isCreatingRoom || isJoiningRoom || isEnteringRoom;
 
@@ -88,7 +88,8 @@ export default function HomeMenu() {
             const data = await resp.json();
             const roomId = data.roomId;
 
-            socket.updateRoomId(roomId);
+            setRoomId(roomId);
+            
             setUsername("");
             setIsUsernameDialogOpen(true);
 
@@ -101,7 +102,7 @@ export default function HomeMenu() {
         }
     }
 
-    async function joinRoom() {
+    async function joinRoomById() {
         if (isBusy) return;
 
         const trimmedRoomId = roomId.trim();
@@ -134,7 +135,7 @@ export default function HomeMenu() {
             }
 
             // Success
-            socket.updateRoomId(trimmedRoomId);
+            setRoomId(trimmedRoomId);
             setUsername("");
             setIsJoinDialogOpen(false);
             setIsUsernameDialogOpen(true);
@@ -167,7 +168,7 @@ export default function HomeMenu() {
                 {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ roomId: socket.getRoomId(), username })
+                    body: JSON.stringify({ roomId: roomId.trim(), username })
                 })
 
             if (resp.status !== 200) {
@@ -182,21 +183,15 @@ export default function HomeMenu() {
                 return;
             }
 
-            socket.connectToRoom(username, joinSuccess, joinFail)
+            await joinRoom({ roomId: roomId.trim(), username })
+            router.push("/canvas")
         } catch (error) {
             console.error(error)
             toast.error("Cannot connect to server.")
             setIsEnteringRoom(false);
+        } finally {
+            setIsEnteringRoom(false);
         }
-    }
-
-    function joinSuccess() {
-        router.push("/canvas")
-    }
-
-    function joinFail(data: { message: string }) {
-        setIsEnteringRoom(false);
-        toast.error(`Failed to join room: '${data.message}'`)
     }
 
     const handleUsernameSubmit = async () => {
@@ -211,7 +206,7 @@ export default function HomeMenu() {
     };
 
     React.useEffect(() => {
-        socket.disconnect()
+        disconnect()
         return () => { }
     }, [])
 
@@ -295,7 +290,7 @@ export default function HomeMenu() {
                                                 onChange={(e) => setRoomId(e.target.value)}
                                                 onKeyDown={(e) => {
                                                     if (e.key === "Enter" && !isJoiningRoom && !isEnteringRoom) {
-                                                        joinRoom();
+                                                        joinRoomById();
                                                     }
                                                 }}
                                                 className="h-12 text-lg"
@@ -303,7 +298,7 @@ export default function HomeMenu() {
                                             />
                                         </div>
                                         <Button
-                                            onClick={joinRoom}
+                                            onClick={joinRoomById}
                                             className="w-full h-12 text-lg"
                                             variant="hero"
                                             disabled={isJoiningRoom || isEnteringRoom || !roomId.trim()}
@@ -327,7 +322,7 @@ export default function HomeMenu() {
                                     <DialogHeader>
                                         <DialogTitle className="text-2xl">Choose Your Username</DialogTitle>
                                         <DialogDescription>
-                                            Pick a username to join room: {socket.getRoomId()}
+                                            Pick a username to join room: {roomId}
                                         </DialogDescription>
                                     </DialogHeader>
                                     <div className="space-y-4 pt-4">
