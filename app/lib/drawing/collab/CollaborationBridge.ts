@@ -19,11 +19,11 @@ export interface ICollaborationBridge {
     attach(): void;
     detach(): void;
 
-    sendStrokeBegin(params: {points: StrokePoint[], newBrushSettings?: BrushSettings }): void;
+    sendStrokeBegin: (params: { point: StrokePoint, brushSettings: BrushSettings }) => void;
 
-    sendStrokeAppend(params: {points: StrokePoint[]}): void;
+    sendStrokeAppend(params: { points: StrokePoint[] }): void;
 
-    sendStrokeCommit(params: {strokeId: string}): void;
+    sendStrokeCommit(params: { strokeId: string }): void;
 
     sendClear(): void;
     sendSnapshot(snapshot: StrokeHistoryRecord[], targetUserId: string): void;
@@ -98,8 +98,6 @@ export class CollaborationBridge implements ICollaborationBridge {
 
     private remoteroomIds = new Map<string, string>();
 
-    private remoteBrushSettings = new Map<string, BrushSettings>();
-
     private boundDrawStart = (data: DrawStartEvent) => {
         if (data.userId === this.userId) return;
         if (data.points.length === 0) return;
@@ -107,23 +105,14 @@ export class CollaborationBridge implements ICollaborationBridge {
         const firstPoint = data.points[0] as StrokePoint;
         const roomId = this.getOrCreateRemoteroomId(data.userId);
 
-        const brushSettings =
-            data.newBrushSettings ?? this.remoteBrushSettings.get(data.userId);
-
-        if (!brushSettings) {
-            throw new Error("Draw start event: referenced remote brush config not found.");
-        }
-
         for (const listener of this.beginListeners) {
             listener({
                 userId: data.userId,
                 roomId,
                 point: firstPoint,
-                brushSettings,
+                brushSettings: data.brushSettings,
             });
         }
-
-        this.remoteBrushSettings.set(data.userId, brushSettings);
     };
 
     private boundDrawUpdate = (data: DrawUpdateEvent) => {
@@ -245,8 +234,6 @@ export class CollaborationBridge implements ICollaborationBridge {
         if (data.targetUserId !== this.userId) return;
         if (data.userId === this.userId) return;
 
-        this.remoteBrushSettings.set(data.userId, data.brushSettings)
-
         for (const listener of this.brushStateListeners) {
             listener(data);
         }
@@ -292,18 +279,18 @@ export class CollaborationBridge implements ICollaborationBridge {
         this.socket.off("brush_state", this.boundBrushState);
     }
 
-    sendStrokeBegin(params: {points: StrokePoint[], newBrushSettings?: BrushSettings }): void {
+    sendStrokeBegin(params: { point: StrokePoint; brushSettings: BrushSettings }): void {
         const payload: DrawStartEvent = {
             roomId: this.roomId,
             userId: this.userId,
-            points: params.points,
-            newBrushSettings: params.newBrushSettings,
+            points: [params.point],
+            brushSettings: params.brushSettings,
         };
 
         this.socket.emit("draw_start", payload);
     }
 
-    sendStrokeAppend(params: {points: StrokePoint[]}): void {
+    sendStrokeAppend(params: { points: StrokePoint[] }): void {
         if (params.points.length === 0) return;
 
         const payload: DrawUpdateEvent = {
@@ -315,7 +302,7 @@ export class CollaborationBridge implements ICollaborationBridge {
         this.socket.emit("draw_update", payload);
     }
 
-    sendStrokeCommit(params: {strokeId: string}): void {
+    sendStrokeCommit(params: { strokeId: string }): void {
         const payload: DrawEndEvent = {
             strokeId: params.strokeId,
             roomId: this.roomId,

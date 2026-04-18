@@ -85,6 +85,8 @@ export interface IStrokeDocument {
     subscribe(listener: () => void): () => void;
 }
 
+export const LINEAR_FN = (x: number) => x
+
 export const SOFT_BRUSH_PRESET_STROKE: StrokeOptions = {
     size: 16,
     thinning: 0.5,
@@ -92,15 +94,15 @@ export const SOFT_BRUSH_PRESET_STROKE: StrokeOptions = {
     streamline: 0.5,
     simulatePressure: true,
 
-    easing: (t) => t,
+    easing: LINEAR_FN,
     start: {
         taper: 100,
-        easing: (t) => t,
+        easing: LINEAR_FN,
         cap: true
     },
     end: {
         taper: 100,
-        easing: (t) => t,
+        easing: LINEAR_FN,
         cap: true
     }
 };
@@ -112,15 +114,15 @@ export const HARD_PENCIL_PRESET_STROKE: StrokeOptions = {
     streamline: 0.5,
     simulatePressure: false,
 
-    easing: (t) => t,
+    easing: LINEAR_FN,
     start: {
         taper: 0,
-        easing: (t) => t,
+        easing: LINEAR_FN,
         cap: true
     },
     end: {
         taper: 0,
-        easing: (t) => t,
+        easing: LINEAR_FN,
         cap: true
     }
 };

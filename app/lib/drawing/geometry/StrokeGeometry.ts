@@ -1,5 +1,6 @@
 import type { BrushSettings, StrokePoint, StrokeBounds } from "drawers-shared";
 import { makeStroke } from "@/app/lib/utility";
+import { LINEAR_FN } from "../document/types";
 
 export class StrokeGeometry {
     static createStrokeId(): string {
@@ -7,6 +8,14 @@ export class StrokeGeometry {
     }
 
     static createSvgPath(points: StrokePoint[], brush: BrushSettings): string {
+
+        // TODO: make this more sophisticated...
+        // Perfect freehand StrokeOptions contain functions, which cannot serialized
+        // map easing fn to primitive id ? 
+        if (brush.strokeOptions.start) brush.strokeOptions.start.easing = LINEAR_FN
+        if (brush.strokeOptions.end) brush.strokeOptions.end.easing = LINEAR_FN
+        brush.strokeOptions.easing = LINEAR_FN
+
         return makeStroke(points, brush);
     }
 
