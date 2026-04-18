@@ -1,5 +1,5 @@
 import type { BrushSettings, StrokePoint, StrokeHistoryRecord } from "drawers-shared";
-import type { IStrokeDocument} from "../document/types";
+import type { IStrokeDocument } from "../document/types";
 import type {
     ICanvasWorldViewport,
     NormalizedPointerEvent,
@@ -24,26 +24,6 @@ type LocalInteractionListener = (state: {
 }) => void;
 
 type HistoryStateListener = () => void;
-
-export interface ILocalDrawingCollabBridge {
-    sendStrokeBegin(params: {
-        roomId: string;
-        point: StrokePoint;
-        brushSettings?: BrushSettings;
-    }): void;
-
-    sendStrokeAppend(params: {
-        roomId: string;
-        points: StrokePoint[];
-    }): void;
-
-    sendStrokeCommit(params: {
-        roomId: string;
-        strokeId: string;
-    }): void;
-
-    sendCursorMove(x: number, y: number): void;
-}
 
 export interface ILocalDrawingController {
     attach(): void;
@@ -78,8 +58,6 @@ export class LocalDrawingController implements ILocalDrawingController {
 
     private unsubscribePointer: (() => void) | null = null;
     private unsubscribeWheel: (() => void) | null = null;
-
-    private hasBrushChanged: boolean = false
 
     private flushPendingAppendPointsThrottled = throttleRaf(() => {
         this.flushPendingAppendPointsNow();
@@ -146,12 +124,10 @@ export class LocalDrawingController implements ILocalDrawingController {
         this.viewport.clearBrushCursor();
     }
 
-    
 
     setBrushSettings(brush: BrushSettings): void {
         this.brushSettings = brush;
         this.drawBrushCursorThrottled();
-        this.hasBrushChanged = true;
     }
 
     getBrushSettings(): BrushSettings {
@@ -243,7 +219,7 @@ export class LocalDrawingController implements ILocalDrawingController {
             const point: StrokePoint = [
                 event.worldX,
                 event.worldY,
-                event.pressure || 0.5,
+                event.pressure ?? 0.5,
             ];
 
             const roomId = this.createLocalStreamId();
@@ -262,14 +238,10 @@ export class LocalDrawingController implements ILocalDrawingController {
 
             this.pendingOutboundPoints = [];
 
-            const newBrushSettings = this.hasBrushChanged ? this.brushSettings : undefined
-
             this.collabBridge?.sendStrokeBegin({
-                points: [point, point],
-                newBrushSettings
+                point: point,
+                brushSettings: this.brushSettings,
             });
-
-            this.hasBrushChanged = false;
 
             this.emitInteractionState();
         }
@@ -340,7 +312,7 @@ export class LocalDrawingController implements ILocalDrawingController {
         const point: StrokePoint = [
             event.worldX,
             event.worldY,
-            event.pressure || 0.5,
+            event.pressure ?? 0.5,
         ];
 
         this.document.apply({
@@ -377,7 +349,7 @@ export class LocalDrawingController implements ILocalDrawingController {
 
             this.collabBridge?.sendStrokeCommit({
                 strokeId: committed?.id,
-            });            
+            });
 
             this.onStrokeCommitted(committed);
 

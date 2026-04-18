@@ -5,15 +5,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
     Dialog,
+    DialogClose,
     DialogContent,
     DialogDescription,
+    DialogFooter,
     DialogHeader,
     DialogTitle,
     DialogTrigger
 } from "@/components/ui/dialog";
 import { Pencil, Users, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Label } from "@/components/ui/label";
 import Link from "next/link";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -55,8 +57,14 @@ export default function HomeMenu() {
     const [isJoiningRoom, setIsJoiningRoom] = useState(false);
     const [isEnteringRoom, setIsEnteringRoom] = useState(false);
 
+    const searchParams = useSearchParams()
+
     const router = useRouter()
     const { joinRoom, disconnect } = useDrawingRoomSession()
+
+    const [isFailedAutoJoinOpen, setIsFailedAutoJoinOpen] = useState(false);
+    const [failedAutoJoinMsg, setFailedAutoJoinMsg] = useState("");
+    const hasHandledAutoJoinRef = React.useRef(false);
 
     const isBusy = isCreatingRoom || isJoiningRoom || isEnteringRoom;
 
@@ -89,7 +97,7 @@ export default function HomeMenu() {
             const roomId = data.roomId;
 
             setRoomId(roomId);
-            
+
             setUsername("");
             setIsUsernameDialogOpen(true);
 
@@ -102,13 +110,33 @@ export default function HomeMenu() {
         }
     }
 
-    async function joinRoomById() {
-        if (isBusy) return;
+    async function autoJoinFromQrUrl(roomIdFromUrl: string) {
+        const errorMsg: string | null = await joinRoomById(roomIdFromUrl, true)
+        
+        if (errorMsg !== null) {
+            setFailedAutoJoinMsg(errorMsg)
+            setIsFailedAutoJoinOpen(true)
+        }
+    }
+
+    React.useEffect(() => {
+        const roomIdFromUrl = searchParams.get("roomId");
+
+        if (!roomIdFromUrl || hasHandledAutoJoinRef.current) return;
+        hasHandledAutoJoinRef.current = true;
+
+        autoJoinFromQrUrl(roomIdFromUrl);
+    }, [searchParams]);
+
+    async function joinRoomById(roomId: string, silent: boolean = false): Promise<string | null> {
+
+        if (isJoiningRoom) return null;
 
         const trimmedRoomId = roomId.trim();
         if (!trimmedRoomId) {
-            toast.error("Please enter a room ID");
-            return;
+            const errorMsg = "Room ID not provided"
+            if (!silent) toast.error(errorMsg);
+            return errorMsg;
         }
 
         setIsJoiningRoom(true);
@@ -130,8 +158,8 @@ export default function HomeMenu() {
                     msg = "An error occurred";
                 }
 
-                toast.error(msg);
-                return;
+                if (!silent) toast.error(msg);
+                return msg;
             }
 
             // Success
@@ -143,10 +171,14 @@ export default function HomeMenu() {
         } catch (error) {
             // Network-level error
             console.error(error);
-            toast.error("Cannot connect to server.");
+            const errorMsg = "Cannot connect to server."
+            if (!silent) toast.error(errorMsg);
+            return errorMsg
         } finally {
             setIsJoiningRoom(false);
         }
+
+        return null
     }
 
     async function enterRoom(username: string) {
@@ -188,7 +220,6 @@ export default function HomeMenu() {
         } catch (error) {
             console.error(error)
             toast.error("Cannot connect to server.")
-            setIsEnteringRoom(false);
         } finally {
             setIsEnteringRoom(false);
         }
@@ -206,12 +237,27 @@ export default function HomeMenu() {
     };
 
     React.useEffect(() => {
-        disconnect()
-        return () => { }
-    }, [])
+        disconnect();
+    }, [disconnect]);
 
     return (
         <div className="min-h-screen bg-[var(--gradient-hero)] flex flex-col w-full">
+
+
+            <Dialog open={isFailedAutoJoinOpen} onOpenChange={setIsFailedAutoJoinOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Failed to auto join</DialogTitle>
+                    </DialogHeader>
+                    <p>Failed to auto join room based on URL: "{failedAutoJoinMsg}"</p>
+                    <DialogFooter className="sm:justify-start">
+                        <DialogClose asChild>
+                            <Button type="button">Close</Button>
+                        </DialogClose>
+                    </DialogFooter>
+                </DialogContent>
+
+            </Dialog>
 
             {
                 IS_DEMO &&
@@ -290,7 +336,7 @@ export default function HomeMenu() {
                                                 onChange={(e) => setRoomId(e.target.value)}
                                                 onKeyDown={(e) => {
                                                     if (e.key === "Enter" && !isJoiningRoom && !isEnteringRoom) {
-                                                        joinRoomById();
+                                                        joinRoomById(roomId);
                                                     }
                                                 }}
                                                 className="h-12 text-lg"
@@ -298,7 +344,7 @@ export default function HomeMenu() {
                                             />
                                         </div>
                                         <Button
-                                            onClick={joinRoomById}
+                                            onClick={(e) => { joinRoomById(roomId) }}
                                             className="w-full h-12 text-lg"
                                             variant="hero"
                                             disabled={isJoiningRoom || isEnteringRoom || !roomId.trim()}
@@ -383,7 +429,7 @@ export default function HomeMenu() {
                         {/* <div className="absolute inset-0 bg-[var(--gradient-primary)] opacity-20 blur-3xl rounded-full"></div> */}
                         <div className="relative flex flex-col gap-2 ">
                             <Label className="text-muted-foreground" aria-labelledby="demo_video">Take a peek at the canvas</Label>
-                            
+
                             <div className="relative aspect-video">
                                 <video title="Canvas demo video" id="demo_video" className="z-2 absolute rounded-md relative shadow-[var(--shadow-card)] w-full h-auto" autoPlay muted loop playsInline>
                                     <source src="/demo/drawers_hero_video_solo.mp4" />
@@ -401,6 +447,8 @@ export default function HomeMenu() {
                     </div>
                 </div>
             </main>
+
+
 
             {/* Footer */}
 
