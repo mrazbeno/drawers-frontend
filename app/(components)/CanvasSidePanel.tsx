@@ -18,6 +18,7 @@ import { toast } from "sonner"
 import { useDrawingRoom } from "../lib/drawing/react/DrawingRoomProvider"
 import { Separator } from "@/components/ui/separator"
 import { useRoomPresence } from "../lib/drawing/react/RoomPresenceProvider"
+import RoomQrDialog from "./RoomQrDialog"
 
 export default function CanvasSidePanel() {
 
@@ -115,6 +116,8 @@ export default function CanvasSidePanel() {
                             <Label htmlFor="room_id_input" className={`whitespace-nowrap`}>Room code:</Label>
                             <Input id="room_id_input" disabled type="text" readOnly value={roomId} />
                             <CopyButton showText={!isMobile} copyString={roomId}></CopyButton>
+                        
+                            <RoomQrDialog roomId={roomId} />
                         </div>
 
                         <div className="grow">
