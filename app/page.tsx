@@ -1,10 +1,13 @@
 import { Metadata } from "next";
 import HomeMenu from "./HomeMenu";
+import { Suspense } from "react";
 
 export default function HomePage() {
 
   return (
-    <HomeMenu />
+    <Suspense fallback={null}>
+        <HomeMenu />
+    </Suspense>
   );
 };
 
